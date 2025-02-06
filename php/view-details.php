@@ -17,7 +17,8 @@ $total_weekly_fee = 350;
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = $_POST['admission_no'] ?? '';
     $amount_paid = floatval($_POST['amount_paid'] ?? 0);
-    
+    $payment_type = $_POST['payment_type'] ?? 'Cash'; // Default to Cash if not selected
+
     // Get current week record
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
     $stmt->bind_param("s", $admission_no);
@@ -30,19 +31,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // If the current week is fully paid, start a new week
         if ($week_data['balance'] == 0) {
             $week_number = $week_data['week_number'] + 1;
-            $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, 0, ?, ?)");
-            $stmt->bind_param("sdi", $admission_no, $total_weekly_fee, $week_number);
+            $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number, payment_type) VALUES (?, 0, ?, ?, ?)");
+            $stmt->bind_param("sdis", $admission_no, $total_weekly_fee, $week_number, $payment_type);
             $stmt->execute();
             $stmt->close();
         } else {
-            // If the current week is not fully paid, continue to distribute the payment in the current week
+            // If the current week is not fully paid, continue distributing the payment in the current week
             $week_number = $week_data['week_number'];
         }
     } else {
         // No record exists, create the first week's record
         $week_number = 1;
-        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, 0, ?, ?)");
-        $stmt->bind_param("sdi", $admission_no, $total_weekly_fee, $week_number);
+        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number, payment_type) VALUES (?, 0, ?, ?, ?)");
+        $stmt->bind_param("sdis", $admission_no, $total_weekly_fee, $week_number, $payment_type);
         $stmt->execute();
         $stmt->close();
     }
@@ -67,8 +68,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $pay_today = min($remaining_fee_for_day, $amount_paid);
                 
                 // Update the day-wise payment
-                $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ? WHERE admission_no = ? AND week_number = ?");
-                $stmt->bind_param("dddsd", $pay_today, $pay_today, $pay_today, $admission_no, $week_number);
+                $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ?, payment_type = ? WHERE admission_no = ? AND week_number = ?");
+                $stmt->bind_param("dddssi", $pay_today, $pay_today, $pay_today, $payment_type, $admission_no, $week_number);
                 $stmt->execute();
                 $stmt->close();
                 
@@ -84,8 +85,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $next_week_balance = $total_weekly_fee;
         
         // Insert a new week record
-        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, 0, ?, ?)");
-        $stmt->bind_param("sdi", $admission_no, $next_week_balance, $week_number);
+        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number, payment_type) VALUES (?, 0, ?, ?, ?)");
+        $stmt->bind_param("sdis", $admission_no, $next_week_balance, $week_number, $payment_type);
         $stmt->execute();
         $stmt->close();
 
@@ -104,8 +105,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $remaining_fee_for_day = $daily_fee - $next_week_data[$day];
             $pay_today = min($remaining_fee_for_day, $amount_paid);
 
-            $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ? WHERE admission_no = ? AND week_number = ?");
-            $stmt->bind_param("dddsd", $pay_today, $pay_today, $pay_today, $admission_no, $week_number);
+            $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ?, payment_type = ? WHERE admission_no = ? AND week_number = ?");
+            $stmt->bind_param("dddssi", $pay_today, $pay_today, $pay_today, $payment_type, $admission_no, $week_number);
             $stmt->execute();
             $stmt->close();
 
@@ -118,7 +119,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 $conn->close();
 ?>
-
 
 <!DOCTYPE html>
 <html>
@@ -133,16 +133,23 @@ $conn->close();
     <div class="add-heading">
         <h2>Lunch Fees</h2>
     </div>
-    <div class="lunch-form" >
-    <form method="POST">
-        <label >Enter Admission Number:</label>
-        <input type="text" name="admission_no" required>
-        <br>
-        <label>Enter Amount Paid:</label>
-        <input type="number" name="amount_paid" required>
-        <br>
-        <button type="submit" class="add-student-btn"><i class='bx bx-cart-add'></i>Pay Now</button>
-    </form>
+    <div class="lunch-form">
+        <form method="POST">
+            <label>Enter Admission Number:</label>
+            <input type="text" name="admission_no" required>
+            <br>
+            <label>Enter Amount Paid:</label>
+            <input type="number" name="amount_paid" required>
+            <br>
+            <label>Payment Type:</label>
+            <select name="payment_type" required>
+                <option value="">select payment</option>
+                <option value="Cash">Cash</option>
+                <option value="Liquid Money">Liquid Money</option>
+            </select>
+            <br>
+            <button type="submit" class="add-student-btn"><i class='bx bx-cart-add'></i>Pay Now</button>
+        </form>
     </div>
 
     <div class="back-dash">
