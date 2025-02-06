@@ -18,26 +18,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = $_POST['admission_no'] ?? '';
     $amount_paid = floatval($_POST['amount_paid'] ?? 0);
     
-    // Get current week record or create new
+    // Get current week record
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
     $result = $stmt->get_result();
     $week_data = $result->fetch_assoc();
     $stmt->close();
-    
-    if (!$week_data || $week_data['balance'] == 0) {
-        // No record or last week fully paid - start new week
-        $week_number = $week_data ? $week_data['week_number'] + 1 : 1;
+
+    if ($week_data) {
+        // If the current week is fully paid, start a new week
+        if ($week_data['balance'] == 0) {
+            $week_number = $week_data['week_number'] + 1;
+            $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, 0, ?, ?)");
+            $stmt->bind_param("sdi", $admission_no, $total_weekly_fee, $week_number);
+            $stmt->execute();
+            $stmt->close();
+        } else {
+            // If the current week is not fully paid, continue to distribute the payment in the current week
+            $week_number = $week_data['week_number'];
+        }
+    } else {
+        // No record exists, create the first week's record
+        $week_number = 1;
         $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, 0, ?, ?)");
         $stmt->bind_param("sdi", $admission_no, $total_weekly_fee, $week_number);
         $stmt->execute();
         $stmt->close();
-    } else {
-        $week_number = $week_data['week_number'];
     }
 
-    // Process payment day by day
+    // Process payment day by day for the current week
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND week_number = ?");
     $stmt->bind_param("si", $admission_no, $week_number);
     $stmt->execute();
@@ -46,7 +56,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     $balance = $week_data['balance'];
     $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-    
+
+    // Distribute payment to the current week first
     while ($amount_paid > 0 && $balance > 0) {
         foreach ($days as $day) {
             if ($balance <= 0 || $amount_paid <= 0) break;
@@ -67,50 +78,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Handle overpayment (amount paid more than 350)
-    if ($amount_paid > 0) {
-        // Insert the overpayment amount as a normal payment for the next week
-        $next_week_number = $week_number + 1;
-        $next_week_balance = $total_weekly_fee - $amount_paid;
-
-        // Insert the overpayment into the next week's balance
-        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("sdid", $admission_no, $amount_paid, $next_week_balance, $next_week_number);
+    // Handle overpayment (amount paid more than the current week's balance)
+    while ($amount_paid > 0) {
+        $week_number += 1;
+        $next_week_balance = $total_weekly_fee;
+        
+        // Insert a new week record
+        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, 0, ?, ?)");
+        $stmt->bind_param("sdi", $admission_no, $next_week_balance, $week_number);
         $stmt->execute();
         $stmt->close();
 
-        // Now distribute the overpayment across the weekdays for the next week
-        $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-        $remaining_amount = $amount_paid;
-
-        // Get the next week's record to apply the overpayment
+        // Distribute the extra payment to the new week's weekdays
         $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND week_number = ?");
-        $stmt->bind_param("si", $admission_no, $next_week_number);
+        $stmt->bind_param("si", $admission_no, $week_number);
         $stmt->execute();
         $next_week_data = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        // Distribute the overpayment across each day
+        $balance = $total_weekly_fee;
+
         foreach ($days as $day) {
-            if ($remaining_amount > 0) {
-                $remaining_fee_for_day = $daily_fee - $next_week_data[$day]; // Calculate remaining fee for the day
-                $pay_today = min($remaining_fee_for_day, $remaining_amount); // Calculate what we can pay today
+            if ($amount_paid <= 0 || $balance <= 0) break;
 
-                // Update the day-wise payment for next week
-                $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ? WHERE admission_no = ? AND week_number = ?");
-                $stmt->bind_param("dddsd", $pay_today, $pay_today, $pay_today, $admission_no, $next_week_number);
-                $stmt->execute();
-                $stmt->close();
+            $remaining_fee_for_day = $daily_fee - $next_week_data[$day];
+            $pay_today = min($remaining_fee_for_day, $amount_paid);
 
-                // Update remaining overpayment amount
-                $remaining_amount -= $pay_today;
-            }
+            $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ? WHERE admission_no = ? AND week_number = ?");
+            $stmt->bind_param("dddsd", $pay_today, $pay_today, $pay_today, $admission_no, $week_number);
+            $stmt->execute();
+            $stmt->close();
+
+            $amount_paid -= $pay_today;
+            $balance -= $pay_today;
         }
-
-        echo "<script>alert('Payment recorded successfully!'); window.location.href='view-details.php';</script>";
-    } else {
-        echo "<script>alert('Payment recorded successfully!'); window.location.href='view-details.php';</script>";
     }
+
+    echo "<script>alert('Payment recorded successfully!'); window.location.href='view-details.php';</script>";
 }
 $conn->close();
 ?>
