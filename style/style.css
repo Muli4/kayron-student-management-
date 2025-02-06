@@ -1,0 +1,474 @@
+*
+{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 0;
+    padding: 0;
+}
+/* login form starts here */
+.login-body
+{
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f4f4f4;
+}
+.login-container
+{
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    width: 300px;
+    text-align: center;
+}
+.login-container h2
+{
+    margin-bottom: 20px;
+    color: #333;
+}
+.input-group
+{
+    margin-bottom: 15px;
+    text-align: left;
+}
+.input-group label
+{
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
+.input-group input
+{
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius:  5px;
+}
+.login-container button
+{
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: #007bff;
+    color: white;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+/* login form ends here */
+
+/* dashboard starts here */
+.dashboard-container
+{
+    display: flex;
+    margin-top: 5px;
+    background: #fafafa;
+}
+.sidebar {
+    margin-top: 5px;
+    width: 200px;
+    background: #007bff;
+    color: white;
+    padding: 20px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 5px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transition: width 0.3s ease-in-out;
+}
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+.sidebar .dropdown {
+    position: relative;
+    width: 100%;
+}
+.sidebar .dropdown  a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    color: white;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.3s ease-in-out;
+}
+.sidebar .dropdown-menu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+    background: #333;
+    border-radius: 5px;
+    width: 100%;
+}
+.sidebar .dropdown.active .dropdown-menu {
+    max-height: 100px;
+}
+
+.sidebar .dropdown-menu li {
+    list-style: none;
+}
+
+.sidebar .dropdown-menu li a {
+    background: #333;
+    display: block;
+    padding: 10px 15px;
+    font-size: 12px;
+    color: #fff;
+    text-decoration: none;
+    transition: background 0.3s ease-in-out;
+}
+
+.sidebar .dropdown-menu li a:hover {
+    background-color: #2c3e50;
+}
+.sidebar .logo
+{
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 30px;
+    color: #f4f4f4;
+}
+
+.sidebar ul li
+{
+    width: 100%;
+    margin: 15px 0;
+}
+.sidebar ul li a
+{
+    display: flex;
+    align-items: center;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: white;
+    font-size: 18px;
+    font-weight: 500;
+    border-radius: 5px;
+    transition: 0.3s ease-in-out;
+    cursor: pointer;
+}
+.sidebar ul li a i
+{
+    font-size: 22px;
+    margin-right: 10px;
+}
+.sidebar ul li a:hover
+{
+    background: #34495e;
+    transform: scale(1.05);
+}
+.main-content 
+{
+    margin-left: 220px;
+    padding: 20px;
+    transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
+    width: calc(100% - 220px);
+    flex-grow: 1;
+    padding: 0 20px 10px 20px;
+    text-align: center;
+}
+.hide-sidebar 
+{
+    width: 0;
+    padding: 0;
+    overflow: hidden;
+}
+.expand-content 
+{
+    margin-left: 0;
+    width: 100%;
+}
+.toggle-btn 
+{
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    position: absolute;
+    left: 60px;
+    top: 20px;
+    color: #fff;
+}
+
+.toggle-btn:hover
+ {
+    color: #0056b3;
+}
+
+.dashboard-title
+{
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #fff;
+    background-color: #007bff;
+    width: auto;
+    padding: 10px;
+    border-radius: 5px;
+}
+.heading-all
+{
+    text-align: center;
+    background: #007bff;
+    color: #fff;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+}
+.links-grid
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    justify-content: center;
+}
+.link-card
+{
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #2c3e50;
+    font-size: 12px;
+    font-weight: bold;
+    box-shadow: 0px 0px 2px 5px rgba(0, 0, 0, 0.1);
+    transition: 0.3s;
+}
+.link-card:hover
+{
+    background: #007bff;
+    color: white;
+}
+/* dashboard ends here */
+
+/* back navigation  */
+.back-dash
+{
+    margin: 20px;
+    text-align: left;
+    text-align: center;
+}
+.back-dash a
+{
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 15px;
+    background: #007bff;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    text-decoration: none;
+    border-radius: 5px;
+}
+.back-dash a i
+{
+    font-size: 20px;
+    margin-left: 8px;
+}
+.back-dash a:hover
+{
+    background: #0056b3;
+}
+/* back navigation */
+
+/* change-username  */
+.change-container
+{
+    width: 400px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    margin: 50px auto;
+}
+.change-container h2
+{
+    color: #333;
+    margin-bottom: 20px;
+}
+.change-container form
+{
+    display: flex;
+    flex-direction: column;
+}
+.change-container label
+{
+    text-align: left;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #555;
+}
+.change-container input
+{
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+.change-container button
+{
+    background-color: #007bff;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.change-container button:hover
+{
+    background-color: #0056b3;
+}
+.change-message
+{
+    color: green;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+.change-container .error
+{
+    color: red;
+}
+
+/* add-student */
+.add-student-form
+{
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+    width: 90%;
+    max-width: 900px;
+    margin: auto;
+}
+.add-student
+{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+}
+.form-group
+{
+    flex: 1 1 calc(50% - 10px);
+    display: flex;
+    align-items: center;
+    background: #fff;
+    padding: 8px;
+    border-radius: 5px;
+    box-shadow: inset 0px 1px 3px rgba(0, 0, 0, 0.1);
+}
+.form-group label
+{
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+    margin-right: 10px;
+}
+.form-group i
+{
+    font-size: 20px;
+    margin-right: 5px;
+    color: #007bff;
+}
+.form-group input, select
+{
+    flex: 1;
+    padding: 8px;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-weight: bold;
+    background: transparent;
+}
+.input-group input[type="file"]
+{
+    background: white;
+    padding: 5px;
+}
+.add-student-btn {
+    padding: 10px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+    display: block;
+    margin: 20px auto;
+    text-align: center;
+}
+
+.add-student-btn:hover {
+    background: #0056b3;
+}
+.add-heading
+{
+    text-align: center;
+    text-transform: uppercase;
+font-weight: bold;
+}
+
+/*  lunch fee payment */
+.lunch-form {
+    max-width: 400px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+.lunch-form label
+{
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    display: block;
+    color: #34495e;
+}
+.lunch-form input
+{
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    color: #333;
+}
+@media (max-width: 768px) {
+    input[type="file"]{
+        max-width: 190px;
+    }
+    .lunch-form {
+        width: 90%;
+    }
+}
