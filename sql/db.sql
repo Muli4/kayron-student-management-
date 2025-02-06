@@ -36,17 +36,16 @@ create table student_records(
     );
 
     CREATE TABLE lunch_fees (
-    id INT AUTO_INCREMENT PRIMARY KEY,            -- Unique ID for each record
-    admission_no VARCHAR(15) NOT NULL,            -- Student admission number
-    birth_cert VARCHAR(20),                       -- Birth certificate number (optional)
-    total_amount DECIMAL(10, 2) DEFAULT 350.00,   -- Total fee for the week (default 350)
-    total_paid DECIMAL(10, 2) NOT NULL DEFAULT 0.00,  -- Total amount paid by the student
-    balance DECIMAL(10, 2) NOT NULL DEFAULT 350.00,  -- Remaining balance (calculated as total_amount - total_paid)
-    week_number INT NOT NULL,                     -- Week number (indicating the current week for tracking)
-    monday DECIMAL(10, 2) NOT NULL DEFAULT 0.00,   -- Payment made for Monday
-    tuesday DECIMAL(10, 2) NOT NULL DEFAULT 0.00,  -- Payment made for Tuesday
-    wednesday DECIMAL(10, 2) NOT NULL DEFAULT 0.00, -- Payment made for Wednesday
-    thursday DECIMAL(10, 2) NOT NULL DEFAULT 0.00,  -- Payment made for Thursday
-    friday DECIMAL(10, 2) NOT NULL DEFAULT 0.00,   -- Payment made for Friday
-    receipt_number VARCHAR(255)                   -- Unique receipt number for each week's payment
+    id INT AUTO_INCREMENT PRIMARY KEY,                  -- Unique ID for each record
+    admission_no VARCHAR(255) NOT NULL,                  -- Admission Number of the student
+    total_paid DECIMAL(10, 2) DEFAULT 0,                 -- Total amount paid so far
+    balance DECIMAL(10, 2) DEFAULT 350,                  -- Remaining balance for the week (initially 350)
+    total_amount DECIMAL(10, 2) DEFAULT 350,             -- Total amount for the week (set to 350)
+    week_number INT NOT NULL,                            -- Week number for the payment
+    monday DECIMAL(10, 2) DEFAULT 0,                     -- Payment made on Monday
+    tuesday DECIMAL(10, 2) DEFAULT 0,                    -- Payment made on Tuesday
+    wednesday DECIMAL(10, 2) DEFAULT 0,                  -- Payment made on Wednesday
+    thursday DECIMAL(10, 2) DEFAULT 0,                   -- Payment made on Thursday
+    friday DECIMAL(10, 2) DEFAULT 0,                     -- Payment made on Friday
+    payment_type ENUM('Cash', 'Liquid Money') NOT NULL  -- Type of payment (Cash or Liquid Money)
 );
