@@ -73,11 +73,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $next_week_number = $week_number + 1;
         $next_week_balance = $total_weekly_fee - $amount_paid;
 
-        // Insert the overpayment into the next week
+        // Insert the overpayment into the next week's balance
         $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number) VALUES (?, ?, ?, ?)");
         $stmt->bind_param("sdid", $admission_no, $amount_paid, $next_week_balance, $next_week_number);
         $stmt->execute();
         $stmt->close();
+
+        // Now distribute the overpayment across the weekdays for the next week
+        $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+        $remaining_amount = $amount_paid;
+
+        // Get the next week's record to apply the overpayment
+        $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND week_number = ?");
+        $stmt->bind_param("si", $admission_no, $next_week_number);
+        $stmt->execute();
+        $next_week_data = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        // Distribute the overpayment across each day
+        foreach ($days as $day) {
+            if ($remaining_amount > 0) {
+                $remaining_fee_for_day = $daily_fee - $next_week_data[$day]; // Calculate remaining fee for the day
+                $pay_today = min($remaining_fee_for_day, $remaining_amount); // Calculate what we can pay today
+
+                // Update the day-wise payment for next week
+                $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ? WHERE admission_no = ? AND week_number = ?");
+                $stmt->bind_param("dddsd", $pay_today, $pay_today, $pay_today, $admission_no, $next_week_number);
+                $stmt->execute();
+                $stmt->close();
+
+                // Update remaining overpayment amount
+                $remaining_amount -= $pay_today;
+            }
+        }
 
         echo "<script>alert('Payment recorded successfully!'); window.location.href='view-details.php';</script>";
     } else {
@@ -86,6 +114,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 $conn->close();
 ?>
+
 
 <!DOCTYPE html>
 <html>
