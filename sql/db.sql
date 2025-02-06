@@ -49,3 +49,17 @@ create table student_records(
     friday DECIMAL(10, 2) DEFAULT 0,                     -- Payment made on Friday
     payment_type ENUM('Cash', 'Liquid Money') NOT NULL  -- Type of payment (Cash or Liquid Money)
 );
+
+CREATE TABLE lunch_fee_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,               -- Unique ID for each transaction
+    name varchar(50) NOT NULL,
+    class ENUM('babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6') NOT NULL,
+    admission_no VARCHAR(50) NOT NULL,                -- Admission number of the student
+    week_number INT NOT NULL,                         -- Week number for the fee
+    amount_paid DECIMAL(10, 2) NOT NULL,              -- Amount paid in the transaction
+    receipt_number VARCHAR(20) NOT NULL,              -- Unique receipt number
+    transaction_number VARCHAR(20) NOT NULL,          -- Unique transaction number
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,    -- Timestamp of the transaction
+    FOREIGN KEY (admission_no) REFERENCES students(admission_no)  -- Foreign key reference to students table
+);
+
