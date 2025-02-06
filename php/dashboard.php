@@ -42,9 +42,9 @@ if (!isset($_SESSION['username'])) {
             
             <div class="links-grid">
                 <a href="./add-student.php" class="link-card">Add Student</a>
-                <a href="./view-details.php" class="link-card">View Student | Teacher</a>
+                <a href="" class="link-card">View Student | Teacher</a>
                 <a href="#" class="link-card">Remove Student | Teacher</a>
-                <a href="#" class="link-card">Pay School Fees | Lunch Fees</a>
+                <a href="./lunch-fee.php" class="link-card">Lunch Fees</a>
                 <a href="#" class="link-card">Pay Teacher</a>
                 <a href="#" class="link-card">Term Update</a>
                 <a href="#" class="link-card">Class Update</a>
