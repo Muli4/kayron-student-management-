@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 // Enable error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -16,8 +18,8 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
+// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Student form data
     $name = $_POST['name'] ?? '';
     $admission_no = $_POST['admission_no'] ?? '';
     $birth_cert = $_POST['birth_cert'] ?? '';
@@ -35,7 +37,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $student_photo = file_get_contents($_FILES['student_photo']['tmp_name']);
     }
 
-    // Fee structure mapping (ensuring all names match database ENUM values)
+    // Check if admission number already exists
+    $check_query = "SELECT admission_no FROM student_records WHERE admission_no = ?";
+    $stmt_check = $conn->prepare($check_query);
+    $stmt_check->bind_param("s", $admission_no);
+    $stmt_check->execute();
+    $stmt_check->store_result();
+
+    if ($stmt_check->num_rows > 0) {
+        $_SESSION['message'] = "<div class='error-message'>Admission number already exists. Try another one.</div>";
+        header("Location: add-student.php");
+        exit();
+    }
+    $stmt_check->close();
+
+    // Fee structure mapping
     $fee_structure = [
         "babyclass" => [4700, 4700, 4700],
         "intermediate" => [4700, 4700, 4700],
@@ -49,7 +65,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         "grade6" => [6700, 6700, 6700]
     ];
 
-    // Determine total fee based on class and term
     $term_index = ["term1" => 0, "term2" => 1, "term3" => 2];
     $total_fee = isset($fee_structure[$class]) ? $fee_structure[$class][$term_index[$term] ?? 0] : 0;
     $amount_paid = 0;
@@ -69,17 +84,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_fee->bind_param("ssssddd", $admission_no, $birth_cert, $class, $term, $total_fee, $amount_paid, $balance);
 
         if ($stmt_fee->execute()) {
-            echo "<script>alert('Student and fee details added successfully!'); window.location.href='add-student.php';</script>";
+            $_SESSION['message'] = "<div class='success-message'>Student and fee details added successfully!</div>";
         } else {
-            echo "Error adding fee record: " . $stmt_fee->error;
+            $_SESSION['message'] = "<div class='error-message'>Error adding fee record: " . $stmt_fee->error . "</div>";
         }
-
         $stmt_fee->close();
     } else {
-        echo "Error adding student: " . $stmt->error;
+        $_SESSION['message'] = "<div class='error-message'>Error adding student: " . $stmt->error . "</div>";
     }
 
     $stmt->close();
+    header("Location: add-student.php");
+    exit();
 }
 
 $conn->close();
@@ -102,6 +118,12 @@ $conn->close();
         <h2>add student</h2>
     </div>
     <form method="post" enctype="multipart/form-data" class="add-student-form">
+    <?php
+    if (isset($_SESSION['message'])) {
+        echo $_SESSION['message'];
+        unset($_SESSION['message']); // Clear message after displaying
+    }
+    ?>
         <div class="add-student">
             <div class="form-group">
                 <label for="name"><i class='bx bxs-user-circle'></i> Name</label>
@@ -191,4 +213,5 @@ $conn->close();
         <a href="./dashboard.php">Back to dashboard <i class='bx bx-exit'></i></a>
     </div>
 </body>
+
 </html>
