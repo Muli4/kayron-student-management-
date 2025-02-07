@@ -59,12 +59,20 @@ if (!isset($_SESSION['username'])) {
 
     <script>
         function toggleSidebar() {
-            let sidebar = document.getElementById("sidebar");
-            let mainContent = document.getElementById("main-content");
+    let sidebar = document.getElementById("sidebar");
+    sidebar.classList.toggle("show-sidebar");
+}
 
-            sidebar.classList.toggle("hide-sidebar");
-            mainContent.classList.toggle("expand-content");
-        }
+// Close sidebar when clicking outside (for better UX)
+document.addEventListener("click", function (event) {
+    let sidebar = document.getElementById("sidebar");
+    let toggleBtn = document.querySelector(".toggle-btn");
+
+    if (!sidebar.contains(event.target) && !toggleBtn.contains(event.target)) {
+        sidebar.classList.remove("show-sidebar");
+    }
+});
+
 
         function toggleDropdown(event) {
             event.preventDefault();
