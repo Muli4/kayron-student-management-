@@ -454,6 +454,7 @@ font-weight: bold;
 }
 
 .success-message {
+    text-align: center;
     color: green;
     background: #dfd;
     padding: 10px;

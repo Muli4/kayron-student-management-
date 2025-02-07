@@ -157,7 +157,7 @@ $conn->close();
             </div>
 
             <div class="form-group">
-                <label>Enter Amount Paid:</label>
+                <label>Enter Amount:</label>
                 <input type="number" name="amount_paid" required>
             </div>
 
