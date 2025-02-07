@@ -19,6 +19,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $amount_paid = floatval($_POST['amount_paid'] ?? 0);
     $payment_type = $_POST['payment_type'] ?? 'Cash'; // Default to Cash if not selected
 
+    // Step 1: Check if admission number exists in student records
+    $stmt = $conn->prepare("SELECT * FROM student_records WHERE admission_no = ?");
+    $stmt->bind_param("s", $admission_no);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $student = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$student) {
+        echo "<script>alert('Error: Admission number not found in student records!'); window.location.href='lunch-fee.php';</script>";
+        exit();
+    }
+
     // Get current week record
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
     $stmt->bind_param("s", $admission_no);
@@ -119,6 +132,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 $conn->close();
 ?>
+
 
 <!DOCTYPE html>
 <html>
