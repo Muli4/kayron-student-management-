@@ -446,7 +446,19 @@ font-weight: bold;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
+.error-message {
+    color: red;
+    background: #fdd;
+    padding: 10px;
+    border-radius: 5px;
+}
 
+.success-message {
+    color: green;
+    background: #dfd;
+    padding: 10px;
+    border-radius: 5px;
+}
 @media (max-width: 768px) {
     input[type="file"]{
         max-width: 190px;
