@@ -124,6 +124,7 @@ $conn->close();
 <html>
 <head>
     <title>Lunch Fee Payment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../style/style.css">
 </head>
 <body>
@@ -135,18 +136,24 @@ $conn->close();
     </div>
     <div class="lunch-form">
         <form method="POST">
-            <label>Enter Admission Number:</label>
-            <input type="text" name="admission_no" required>
+            <div class="form-group">
+                <label>Enter Admission Number:</label>
+                <input type="text" name="admission_no" required>
+            </div>
+
+            <div class="form-group">
+                <label>Enter Amount Paid:</label>
+                <input type="number" name="amount_paid" required>
+            </div>
             <br>
-            <label>Enter Amount Paid:</label>
-            <input type="number" name="amount_paid" required>
-            <br>
-            <label>Payment Type:</label>
+            <div class="form-group">
+                <label>Payment Type:</label>
             <select name="payment_type" required>
                 <option value="">select payment</option>
                 <option value="Cash">Cash</option>
                 <option value="Liquid Money">Liquid Money</option>
             </select>
+            </div>
             <br>
             <button type="submit" class="add-student-btn"><i class='bx bx-cart-add'></i>Pay Now</button>
         </form>
