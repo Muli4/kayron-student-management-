@@ -57,6 +57,7 @@ CREATE TABLE lunch_fee_transactions (
     admission_no VARCHAR(50) NOT NULL,                -- Admission number of the student
     amount_paid DECIMAL(10, 2) NOT NULL,              -- Amount paid in the transaction
     receipt_number VARCHAR(20) NOT NULL,              -- Unique receipt number
-    payment_type ENUM('Cash', 'Liquid Money') NOT NULL  -- Type of payment (Cash or Liquid Money)
+    payment_type ENUM('Cash', 'Liquid Money') NOT NULL,  -- Type of payment (Cash or Liquid Money)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

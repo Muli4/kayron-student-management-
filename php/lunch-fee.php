@@ -21,8 +21,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $amount_paid = floatval($_POST['amount_paid'] ?? 0);
     $payment_type = $_POST['payment_type'] ?? 'Cash';
 
-    // Validate admission number
-    $stmt = $conn->prepare("SELECT * FROM student_records WHERE admission_no = ?");
+    // Store original amount for transaction recording
+    $original_amount_paid = $amount_paid;
+
+    // Validate admission number and fetch student details
+    $stmt = $conn->prepare("SELECT name, class FROM student_records WHERE admission_no = ?");
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -34,6 +37,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: lunch-fee.php");
         exit();
     }
+
+    $name = $student['name'];
+    $class = $student['class'];
+
+    // Generate a unique receipt number
+    $receipt_number = uniqid("REC-");
 
     // Fetch current week's record
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
@@ -102,12 +111,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
+    // Insert transaction record into lunch_fee_transactions
+    $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_number, $original_amount_paid, $payment_type);
+    $stmt->execute();
+    $stmt->close();
+
     $_SESSION['message'] = "<div class='success-message'>Payment recorded successfully!</div>";
     header("Location: lunch-fee.php");
     exit();
 }
+
 $conn->close();
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
