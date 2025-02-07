@@ -1,0 +1,146 @@
+<?php
+session_start();
+
+// Database Connection
+$servername = "localhost";
+$username = "root";
+$password = "";
+$database = "school_database";
+
+$conn = new mysqli($servername, $username, $password, $database);
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// When form is submitted
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $admission_no = trim($_POST['admission_no'] ?? '');
+    $amount_paid = floatval($_POST['amount_paid'] ?? 0);
+    $payment_type = $_POST['payment_type'] ?? 'Cash';
+
+    // Store original amount for transaction record
+    $original_amount_paid = $amount_paid;
+
+    // Fetch student details
+    $stmt = $conn->prepare("SELECT name, class FROM student_records WHERE admission_no = ?");
+    $stmt->bind_param("s", $admission_no);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $student = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$student) {
+        $_SESSION['message'] = "<div class='error-message'>Error: Admission number not found!</div>";
+        header("Location: school-fee-payment.php");
+        exit();
+    }
+
+    $name = $student['name'];
+    $class = $student['class'];
+
+    // Fetch school fees record
+    $stmt = $conn->prepare("SELECT total_fee, amount_paid, balance FROM school_fees WHERE admission_no = ?");
+    $stmt->bind_param("s", $admission_no);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $fee_record = $result->fetch_assoc();
+    $stmt->close();
+
+    if (!$fee_record) {
+        $_SESSION['message'] = "<div class='error-message'>Error: No school fee record found!</div>";
+        header("Location: school-fee-payment.php");
+        exit();
+    }
+
+    $total_fee = $fee_record['total_fee'];
+    $previous_paid = $fee_record['amount_paid'];
+    $previous_balance = $fee_record['balance'];
+
+    // Calculate new payment and balance
+    $new_total_paid = $previous_paid + $amount_paid;
+    $new_balance = $total_fee - $new_total_paid;
+
+    // Update school_fees table
+    $stmt = $conn->prepare("UPDATE school_fees SET amount_paid = ?, balance = ? WHERE admission_no = ?");
+    $stmt->bind_param("dds", $new_total_paid, $new_balance, $admission_no);
+    $stmt->execute();
+    $stmt->close();
+
+    // Generate a truly unique receipt number
+    do {
+        $receipt_number = "REC-" . strtoupper(uniqid()) . "-" . mt_rand(1000, 9999);
+        $check_stmt = $conn->prepare("SELECT COUNT(*) FROM school_fee_transactions WHERE receipt_number = ?");
+        $check_stmt->bind_param("s", $receipt_number);
+        $check_stmt->execute();
+        $check_stmt->bind_result($count);
+        $check_stmt->fetch();
+        $check_stmt->close();
+    } while ($count > 0);
+
+    // Insert transaction record
+    $stmt = $conn->prepare("INSERT INTO school_fee_transactions (name, admission_no, class, amount_paid, receipt_number, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssdss", $name, $admission_no, $class, $original_amount_paid, $receipt_number, $payment_type);
+    $stmt->execute();
+    $stmt->close();
+
+    $_SESSION['message'] = "<div class='success-message'>School Fee Payment Successful! Receipt No: $receipt_number</div>";
+    header("Location: school-fee-payment.php");
+    exit();
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>School Fee Payment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../style/style.css">
+</head>
+<body>
+    <div class="heading-all">
+        <h2 class="title">Kayron Junior School</h2>
+    </div>
+    <div class="add-heading">
+        <h2>School Fees</h2>
+    </div>
+
+    <div class="lunch-form">
+        <form method="POST">
+            <!-- Display session message above the form -->
+            <?php
+            if (isset($_SESSION['message'])) {
+                echo $_SESSION['message'];
+                unset($_SESSION['message']);
+            }
+            ?>
+
+            <div class="form-group">
+                <label>Enter Admission Number:</label>
+                <input type="text" name="admission_no" required>
+            </div>
+
+            <div class="form-group">
+                <label>Enter Amount:</label>
+                <input type="number" name="amount_paid" required>
+            </div>
+
+            <div class="form-group">
+                <label>Payment Type:</label>
+                <select name="payment_type" required>
+                    <option value="">Select Payment</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Liquid Money">Liquid Money</option>
+                </select>
+            </div>
+
+            <button type="submit" class="add-student-btn">Pay Now</button>
+        </form>
+    </div>
+
+    <div class="back-dash">
+        <a href="./dashboard.php">Back to dashboard</a>
+    </div>
+</body>
+</html>
