@@ -142,7 +142,7 @@ $conn->close();
 
             <div class="form-group">
                 <label for="dob"><i class='bx bx-calendar'></i> Date Of Birth</label>
-                <input type="date" name="dob" required>
+                <input type="date" name="dob" id="dob" required>
             </div>
 
             <div class="form-group">
@@ -219,5 +219,7 @@ $conn->close();
     <footer class="footer">
         <p>&copy; <?php echo date("Y")?>Kayron Junior School. All Rights Reserved.</p>
     </footer>
+    
 </body>
+<script src="../js/java-script.js" defer></script>
 </html>
