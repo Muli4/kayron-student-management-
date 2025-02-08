@@ -31,7 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (!$student) {
         $_SESSION['message'] = "<div class='error-message'>Error: Admission number not found!</div>";
-        header("Location: school-fee-payment.php");
+        header("Location: make-payments.php");
         exit();
     }
 
@@ -48,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (!$fee_record) {
         $_SESSION['message'] = "<div class='error-message'>Error: No school fee record found!</div>";
-        header("Location: school-fee-payment.php");
+        header("Location: make-payments.php");
         exit();
     }
 
