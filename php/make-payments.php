@@ -53,7 +53,7 @@
         <div class="form-group">
             <label for="payment_type">Payment Method:</label>
         <select id="payment_type" name="payment_type" required>
-            <option value="">Type eg cash, m-pesa</option>
+            <option value="">Select Method</option>
             <option value="mpesa">M-Pesa</option>
             <option value="bank_transfer">Bank Transfer</option>
             <option value="cash">Cash</option>

@@ -42,11 +42,11 @@ if (!isset($_SESSION['username'])) {
             
             <div class="links-grid">
                 <a href="./add-student.php" class="link-card">Add Student</a>
-                <a href="" class="link-card">View Student | Teacher</a>
+                <a href="#" class="link-card">View Student | Teacher</a>
                 <a href="#" class="link-card">Remove Student | Teacher</a>
-                <a href="./lunch-fee.php" class="link-card">Lunch Fees</a>
+                <a href="#" class="link-card">Lunch Fees</a>
                 <a href="./make-payments.php" class="link-card">Make Payments</a>
-                <a href="./school-fee-payment.php" class="link-card">school fees</a>
+                <a href="#" class="link-card">school fees</a>
                 <a href="#" class="link-card">Class Update</a>
                 <a href="#" class="link-card">Update Details</a>
                 <a href="#" class="link-card">Search Receipt</a>
