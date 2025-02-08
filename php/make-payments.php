@@ -37,7 +37,7 @@
         <div class="form-group">
         <label for="fee_type">Select Fee Type:</label>
         <select id="fee_type" name="fee_type" onchange="updateFormAction()" required>
-            <option value="">Select type</option>
+            <option value="">-- Select type --</option>
             <option value="school_fees">School Fees</option>
             <option value="lunch_fees">Lunch Fees</option>
             <option value="admission_fee">Admission Fee</option>
@@ -53,7 +53,7 @@
         <div class="form-group">
             <label for="payment_type">Payment Method:</label>
         <select id="payment_type" name="payment_type" required>
-            <option value="">Select Method</option>
+            <option value="">-- Select Method --</option>
             <option value="mpesa">M-Pesa</option>
             <option value="bank_transfer">Bank Transfer</option>
             <option value="cash">Cash</option>
