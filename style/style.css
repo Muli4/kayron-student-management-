@@ -461,6 +461,8 @@ font-weight: bold;
     background: #fdd;
     padding: 10px;
     border-radius: 2px;
+    text-align: center;
+    align-items: center;
 }
 
 .success-message {
@@ -469,6 +471,7 @@ font-weight: bold;
     background: #dfd;
     padding: 10px;
     border-radius: 5px;
+    text-align: center;
 }
 
 /* footer starts here  */
