@@ -75,5 +75,5 @@
 <footer class="footer">
         <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
     </footer>
-<script src="../js/script.js"></script>
+<script src="../js/java-script.js"></script>
 </html>
