@@ -63,21 +63,6 @@
 <div class="back-dash">
         <a href="./dashboard.php">Back to dashboard</a>
     </div>
-<script>
-    function updateFormAction() {
-        let feeType = document.getElementById("fee_type").value;
-        let form = document.getElementById("paymentForm");
-
-        if (feeType === "lunch_fees") {
-            form.action = "lunch-fee.php";
-        } else {
-            form.action = "school-fee-payment.php";
-        }
-    }
-
-    // Set initial form action
-    updateFormAction();
-</script>
-
 </body>
+<script src="../js/script.js"></script>
 </html>
