@@ -4,44 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Make a Payment</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            text-align: center;
-            padding: 20px;
-        }
-        .container {
-            max-width: 400px;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        input, select, button {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-    </style>
+    <link rel="stylesheet" href="../style/style.css">
 </head>
 <body>
 
-<div class="container">
-    <h2>Make a Payment</h2>
-    
+<div class="heading-all">
+        <h2 class="title">Kayron Junior School</h2>
+    </div>
+    <div class="add-heading">
+        <h2>School Fees</h2>
+    </div>
+<div class="lunch-form">
     <form id="paymentForm" action="" method="POST">
     <?php
             if (isset($_SESSION['message'])) {
@@ -49,29 +22,41 @@
                 unset($_SESSION['message']);
             }
             ?>
-        <label for="admission_no">Admission Number:</label>
-        <input type="text" id="admission_no" name="admission_no" placeholder="Enter your admission number" required>
+        <div class="form-group">
+            <label for="admission_no">Admission Number:</label>
+            <input type="text" id="admission_no" name="admission_no" placeholder="Enter your admission number" required>
+        </div>
 
+        <div class="form-group">
         <label for="fee_type">Select Fee Type:</label>
         <select id="fee_type" name="fee_type" onchange="updateFormAction()">
+            <option value="">Select type</option>
             <option value="school_fees">School Fees</option>
             <option value="lunch_fees">Lunch Fees</option>
         </select>
+        </div>
 
-        <label for="amount_paid">Amount (KSH):</label>
-        <input type="number" id="amount_paid" name="amount_paid" placeholder="Enter amount" required>
+        <div class="form-group">
+            <label for="amount_paid">Amount (KSH):</label>
+            <input type="number" id="amount_paid" name="amount_paid" placeholder="Enter amount" required>
+        </div>
 
-        <label for="payment_type">Payment Method:</label>
+        <div class="form-group">
+            <label for="payment_type">Payment Method:</label>
         <select id="payment_type" name="payment_type">
             <option value="mpesa">M-Pesa</option>
             <option value="bank_transfer">Bank Transfer</option>
             <option value="cash">Cash</option>
         </select>
+        </div>
 
-        <button type="submit">Proceed to Pay</button>
+        <button type="submit" class="add-student-btn">Proceed to Pay</button>
     </form>
 </div>
 
+<div class="back-dash">
+        <a href="./dashboard.php">Back to dashboard</a>
+    </div>
 <script>
     function updateFormAction() {
         let feeType = document.getElementById("fee_type").value;
