@@ -34,7 +34,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if (!$student) {
         $_SESSION['message'] = "<div class='error-message'>Error: Admission number not found in student records!</div>";
-        header("Location: lunch-fee.php");
+        header("Location: make-payments.php");
         exit();
     }
 
