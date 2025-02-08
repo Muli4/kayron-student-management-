@@ -14,14 +14,17 @@
     <div class="add-heading">
         <h2>School Fees</h2>
     </div>
+
 <div class="lunch-form">
     <form id="paymentForm" action="" method="POST">
+    
     <?php
-            if (isset($_SESSION['message'])) {
-                echo $_SESSION['message'];
-                unset($_SESSION['message']);
-            }
-            ?>
+    session_start();
+    if (isset($_SESSION['message'])){
+        echo"<div class='message'>" . $_SESSION['message'] . "</div>";
+        unset($_SESSION['message']);
+    }
+    ?>
         <div class="form-group">
             <label for="admission_no">Admission Number:</label>
             <input type="text" id="admission_no" name="admission_no" placeholder="Enter your admission number" required>
@@ -33,6 +36,8 @@
             <option value="">Select type</option>
             <option value="school_fees">School Fees</option>
             <option value="lunch_fees">Lunch Fees</option>
+            <option value="admission_fee">Admission Fee</option>
+            <option value="school_diary">School Diary</option>
         </select>
         </div>
 
@@ -44,6 +49,7 @@
         <div class="form-group">
             <label for="payment_type">Payment Method:</label>
         <select id="payment_type" name="payment_type">
+            <option value="">Type</option>
             <option value="mpesa">M-Pesa</option>
             <option value="bank_transfer">Bank Transfer</option>
             <option value="cash">Cash</option>
