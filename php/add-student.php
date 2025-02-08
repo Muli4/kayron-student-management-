@@ -148,7 +148,7 @@ $conn->close();
             <div class="form-group">
                 <label for="gender"><i class='bx bx-male-female'></i> Gender</label>
                 <select name="gender" required>
-                    <option value="">Select Gender</option>
+                    <option value="">-- Select Gender --</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                 </select>
@@ -157,7 +157,7 @@ $conn->close();
             <div class="form-group">
                 <label for="class"><i class='bx bxs-chalkboard'></i> Class</label>
                 <select name="class" required>
-                    <option value="">Select Class</option>
+                    <option value="">-- Select a Class --</option>
                     <option value="babyclass">BabyClass</option>
                     <option value="intermediate">Intermediate</option>
                     <option value="PP1">Pre-Primary 1</option>
@@ -174,7 +174,7 @@ $conn->close();
             <div class="form-group">
                 <label for="term"><i class='bx bxs-calendar-week'></i> Term</label>
                 <select name="term" required>
-                    <option value="">Select Term</option>
+                    <option value="">-- Select Term --</option>
                     <option value="term1">Term One</option>
                     <option value="term2">Term Two</option>
                     <option value="term3">Term Three</option>
@@ -184,7 +184,7 @@ $conn->close();
             <div class="form-group">
                 <label for="religion"><i class='bx bxs-church'></i> Religion</label>
                 <select name="religion" required>
-                    <option value="">Select Religion</option>
+                    <option value="">-- Select Religion --</option>
                     <option value="christian">Christian</option>
                     <option value="muslim">Muslim</option>
                     <option value="other">Other</option>
