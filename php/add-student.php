@@ -207,11 +207,12 @@ $conn->close();
             </div>
         </div>
         <button type="submit" class="add-student-btn"><i class='bx bx-cart-add'></i> Add Student</button>
+        <button type="submit" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
     </form>
 
-    <div class="back-dash">
+    <!--<div class="back-dash">
         <a href="./dashboard.php">Back to dashboard <i class='bx bx-exit'></i></a>
-    </div>
+    </div>-->
 
     <footer class="footer">
         <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
