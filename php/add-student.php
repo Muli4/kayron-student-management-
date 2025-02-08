@@ -206,8 +206,10 @@ $conn->close();
                 <input type="file" name="student_photo">
             </div>
         </div>
-        <button type="submit" class="add-student-btn"><i class='bx bx-cart-add'></i> Add Student</button>
-        <button type="submit" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
+        <div class="button-container">
+            <button type="submit" class="add-student-btn"><i class='bx bx-cart-add'></i> Add Student</button>
+            <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
+        </div>
     </form>
 
     <!--<div class="back-dash">
@@ -215,7 +217,7 @@ $conn->close();
     </div>-->
 
     <footer class="footer">
-        <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
+        <p>&copy; <?php echo date("Y")?>Kayron Junior School. All Rights Reserved.</p>
     </footer>
 </body>
 </html>
