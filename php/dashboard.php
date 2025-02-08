@@ -62,6 +62,6 @@ if (!isset($_SESSION['username'])) {
     </footer>
 
 
-    <script src="../js/script.js"></script>
+    <script src="../js/java-script.js"></script>
 </body>
 </html>
