@@ -64,5 +64,9 @@
         <a href="./dashboard.php">Back to dashboard</a>
     </div>
 </body>
+
+<footer class="footer">
+        <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
+    </footer>
 <script src="../js/script.js"></script>
 </html>
