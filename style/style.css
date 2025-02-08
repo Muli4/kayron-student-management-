@@ -456,13 +456,22 @@ font-weight: bold;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
+.lunch-form .form-group
+{
+    flex: 1 1 calc(50% - 10px);
+    display: flex;
+    align-items: center;
+    background: #fff;
+    padding: 8px;
+    border-radius: 5px;
+    box-shadow: inset 0px 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 10px;
+}
 .error-message {
     color: red;
     background: #fdd;
     padding: 10px;
     border-radius: 2px;
-    text-align: center;
-    align-items: center;
 }
 
 .success-message {
@@ -471,7 +480,6 @@ font-weight: bold;
     background: #dfd;
     padding: 10px;
     border-radius: 5px;
-    text-align: center;
 }
 
 /* footer starts here  */
