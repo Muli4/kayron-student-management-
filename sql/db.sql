@@ -1,3 +1,5 @@
+-- student records start here
+
 create table student_records(
     name varchar(50) NOT NULL,
     admission_no varchar(15) NOT NULL PRIMARY KEY,
@@ -13,6 +15,10 @@ create table student_records(
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+-- student records end here
+
+-- teacher records start here
+
     CREATE TABLE teacher_records(
     id int(20) NOT NULL PRIMARY KEY,
     name varchar(20) NOT NULL,
@@ -25,6 +31,9 @@ create table student_records(
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+-- teacher records end here
+
+-- school fee details start here
     CREATE TABLE school_fees(
     admission_no varchar(15) NOT NULL PRIMARY KEY,
     birth_cert varchar(20),
@@ -35,6 +44,22 @@ create table student_records(
     balance DECIMAL(10, 2) 
     );
 
+    CREATE TABLE school_fee_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name varchar(50) NOT NULL,
+    admission_no VARCHAR(15) NOT NULL,
+    class ENUM('babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6') NOT NULL,
+    amount_paid DECIMAL(10,2) NOT NULL,
+    receipt_number VARCHAR(50) NOT NULL UNIQUE,
+    payment_type VARCHAR(20) NOT NULL,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--- school fee records end here
+
+
+-- lunch fee records start here
     CREATE TABLE lunch_fees (
     id INT AUTO_INCREMENT PRIMARY KEY,                  -- Unique ID for each record
     admission_no VARCHAR(255) NOT NULL,                  -- Admission Number of the student
@@ -61,3 +86,5 @@ CREATE TABLE lunch_fee_transactions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
+-- lunch fee records end here
