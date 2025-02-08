@@ -118,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->close();
 
     $_SESSION['message'] = "<div class='success-message'>Payment recorded successfully!</div>";
-    header("Location: lunch-fee.php");
+    header("Location: make-payments.php");
     exit();
 }
 
