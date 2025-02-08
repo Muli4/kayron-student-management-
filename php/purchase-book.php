@@ -1,4 +1,6 @@
 <?php
+session_start(); // Start session to store messages
+
 // Database connection
 $conn = new mysqli("localhost", "root", "", "school_database");
 
@@ -27,7 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $class = $student['class'];
         $term = $student['term'];
 
-        // Fetch book details (price and name)
+        // Fetch book details (name & price)
         $book_query = "SELECT book_name, price FROM Books WHERE book_id = ?";
         $stmt = $conn->prepare($book_query);
         $stmt->bind_param("i", $book_id);
@@ -46,16 +48,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $stmt->bind_param("ssssissd", $receipt_no, $admission_no, $name, $class, $term, $book_id, $book_name, $price);
 
             if ($stmt->execute()) {
-                echo "<p style='color: green;'>Purchase recorded successfully! Receipt No: <strong>$receipt_no</strong></p>";
+                $_SESSION['success'] = "<div class='success-message'>Purchase recorded successfully!</div>";
             } else {
-                echo "<p style='color: red;'>Error: " . $stmt->error . "</p>";
+                $_SESSION['error'] = "Error: " . $stmt->error;
             }
         } else {
-            echo "<p style='color: red;'>Book not found!</p>";
+            $_SESSION['error'] = "<div class='error-message'>Book not found!</div>";
         }
     } else {
-        echo "<p style='color: red;'>Student not found!</p>";
+        $_SESSION['error'] = "<div class='error-message'>Student not found!</div>";
     }
+
+    // Redirect back to form
+    header("Location: purchase-book.php");
+    exit();
 }
 ?>
 
@@ -65,22 +71,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Purchase Book</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        form { max-width: 400px; padding: 20px; border: 1px solid #ccc; border-radius: 10px; }
-        label { display: block; margin-top: 10px; }
-        input, select, button { width: 100%; padding: 10px; margin-top: 5px; }
-        button { background-color: #28a745; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #218838; }
-    </style>
+    <link rel="stylesheet" href="../style/style.css">
 </head>
 <body>
+<div class="heading-all">
+        <h2 class="title">Kayron Junior School</h2>
+    </div>
+    <div class="add-heading">
+        <h2>Purchase a Book</h2>
+    </div>
 
-    <h2>Purchase a Book</h2>
+    <div class="lunch-form">
+
     <form action="" method="POST">
-        <label for="admission_no">Admission Number:</label>
-        <input type="text" id="admission_no" name="admission_no" required>
+    <?php
+        if (isset($_SESSION['success'])) {
+            echo "<p class='message success'>" . $_SESSION['success'] . "</p>";
+            unset($_SESSION['success']);
+        }
+        if (isset($_SESSION['error'])) {
+            echo "<p class='message error'>" . $_SESSION['error'] . "</p>";
+            unset($_SESSION['error']);
+        }
+    ?>
 
+        <div class="form-group">
+            <label for="admission_no">Admission Number:</label>
+            <input type="text" id="admission_no" name="admission_no" placeholder="Enter Admission Number" required>
+        </div>
+
+        <div class="form-group">
         <label for="book_id">Select Book:</label>
         <select id="book_id" name="book_id" required>
             <option value="">-- Select a Book --</option>
@@ -94,10 +114,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             ?>
         </select>
+        </div>
 
-        <button type="submit">Submit Purchase</button>
+        <div class="button-container">
+            <button type="submit" class="add-student-btn">Purchase</button>
+            <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
+        </div>
+
     </form>
+    </div>
 
+    <footer class="footer">
+        <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
+    </footer>
 </body>
 </html>
 
