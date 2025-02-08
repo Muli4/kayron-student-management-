@@ -58,7 +58,7 @@ if (!isset($_SESSION['username'])) {
     </div>
     
     <footer class="footer-dash">
-        <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
+        <p>&copy; <?php echo date("Y")?>Kayron Junior School. All Rights Reserved.</p>
     </footer>
 
 
