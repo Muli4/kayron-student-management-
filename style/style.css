@@ -426,6 +426,10 @@ body {
     margin: 20px auto;
     text-align: center;
 }
+.add-student-btn a{
+    text-decoration: none;
+    color: white;
+}
 
 .add-student-btn:hover {
     background: #0056b3;
@@ -464,11 +468,12 @@ font-weight: bold;
 /* footer starts here  */
 .footer
 {
+    margin-top: 10px;
     text-align: center;
     padding: 10px;
     background: #333;
     color: white;
-    position: relative;
+    position: fixed;
     bottom: 0px;
     width: 100%;
 }
