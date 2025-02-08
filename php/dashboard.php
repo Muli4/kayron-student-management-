@@ -56,6 +56,12 @@ if (!isset($_SESSION['username'])) {
             </div>
         </div>
     </div>
+    
+    <footer class="footer-dash">
+        <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
+    </footer>
+
+
     <script src="../js/script.js"></script>
 </body>
 </html>
