@@ -33,3 +33,18 @@ window.history.pushState(null, "", window.location.href);
         window.addEventListener("popstate", function() {
         window.history.pushState(null, "", window.location.href);
 });
+
+// make payments handling
+function updateFormAction() {
+    let feeType = document.getElementById("fee_type").value;
+    let form = document.getElementById("paymentForm");
+
+    if (feeType === "lunch_fees") {
+        form.action = "lunch-fee.php";
+    } else {
+        form.action = "school-fee-payment.php";
+    }
+}
+
+// Set initial form action
+updateFormAction();
