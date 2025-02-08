@@ -212,6 +212,9 @@ $conn->close();
     <div class="back-dash">
         <a href="./dashboard.php">Back to dashboard <i class='bx bx-exit'></i></a>
     </div>
-</body>
 
+    <footer class="footer">
+        <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
+    </footer>
+</body>
 </html>
