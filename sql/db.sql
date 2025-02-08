@@ -88,3 +88,29 @@ CREATE TABLE lunch_fee_transactions (
 
 
 -- lunch fee records end here
+
+
+-- items records start here
+CREATE TABLE Items (
+    item_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    category ENUM('Diary', 'Assessment Book', 'Uniform') NOT NULL,
+    size VARCHAR(20) NULL,  -- Only for uniforms
+    price DECIMAL(10,2) NOT NULL
+);
+
+
+-- items records end here
+
+-- purchases start here
+CREATE TABLE Purchases (
+    purchase_id INT PRIMARY KEY AUTO_INCREMENT,
+    admission_noVARCHAR(15),
+    item_id INT,
+    quantity INT NOT NULL,
+    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admission_no) REFERENCES student_records(admission_no),
+    FOREIGN KEY (item_id) REFERENCES Items(item_id)
+);
+
+-- purchases end here
