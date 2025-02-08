@@ -460,6 +460,28 @@ font-weight: bold;
     padding: 10px;
     border-radius: 5px;
 }
+
+/* footer starts here  */
+.footer
+{
+    text-align: center;
+    padding: 10px;
+    background: #333;
+    color: white;
+    position: relative;
+    bottom: 0px;
+    width: 100%;
+}
+.footer-dash
+{
+    text-align: center;
+    padding: 10px;
+    background: #333;
+    color: white;
+    position: fixed;
+    bottom: 0px;
+    width: 100%;
+}
 /* Mobile Responsive Styles */
 @media screen and (max-width: 768px) {
     input[type="file"]{
