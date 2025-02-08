@@ -57,13 +57,14 @@
         </div>
 
         <button type="submit" class="add-student-btn">Proceed to Pay</button>
+        <button type="submit" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
     </form>
 </div>
 
-<div class="back-dash">
+<!--<div class="back-dash">
         <a href="./dashboard.php">Back to dashboard</a>
     </div>
-</body>
+</body>-->
 
 <footer class="footer">
         <p>&copy; <?php echo date("Y")?>Kayron Junior Schook. All Rights Reserved.</p>
