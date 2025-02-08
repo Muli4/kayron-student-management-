@@ -56,41 +56,6 @@ if (!isset($_SESSION['username'])) {
             </div>
         </div>
     </div>
-
-    <script>
-        function toggleSidebar() {
-    let sidebar = document.getElementById("sidebar");
-    sidebar.classList.toggle("show-sidebar");
-}
-
-// Close sidebar when clicking outside (for better UX)
-document.addEventListener("click", function (event) {
-    let sidebar = document.getElementById("sidebar");
-    let toggleBtn = document.querySelector(".toggle-btn");
-
-    if (!sidebar.contains(event.target) && !toggleBtn.contains(event.target)) {
-        sidebar.classList.remove("show-sidebar");
-    }
-});
-
-
-        function toggleDropdown(event) {
-            event.preventDefault();
-            let dropdown = event.currentTarget.parentElement;
-            dropdown.classList.toggle("active");
-        }
-
-        // Prevent back navigation after logout
-        window.history.pushState(null, "", window.location.href);
-        window.addEventListener("popstate", function() {
-            window.history.pushState(null, "", window.location.href);
-        });
-
-        function preventBack() {
-            window.history.forward();
-        }
-        setTimeout(preventBack, 0);
-        window.onunload = function() { null };
-    </script>
+    <script src="../js/script.js"></script>
 </body>
 </html>
