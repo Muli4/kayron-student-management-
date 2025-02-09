@@ -58,7 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Calculate new payment and balance
     $new_total_paid = $previous_paid + $amount_paid;
-    $new_balance = $total_fee - $new_total_paid;
+    $new_balance = max(0, $total_fee - $new_total_paid); // Ensure balance doesn't go negative
 
     // Update school_fees table
     $stmt = $conn->prepare("UPDATE school_fees SET amount_paid = ?, balance = ? WHERE admission_no = ?");
@@ -68,7 +68,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Generate a truly unique receipt number
     do {
-        $receipt_number = "REC-" . strtoupper(uniqid()) . "-" . mt_rand(1000, 9999);
+        $receipt_number = "REC-" . strtoupper(bin2hex(random_bytes(4))); // Secure 8-char unique ID
         $check_stmt = $conn->prepare("SELECT COUNT(*) FROM school_fee_transactions WHERE receipt_number = ?");
         $check_stmt->bind_param("s", $receipt_number);
         $check_stmt->execute();
