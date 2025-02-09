@@ -14,9 +14,11 @@ $message = "";
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_username = trim($_POST['new_username']);
 
-    // Prevent empty usernames
+    // Prevent empty or same username
     if (empty($new_username)) {
         $message = "Username cannot be empty.";
+    } elseif ($new_username === $username) {
+        $message = "New username cannot be the same as the current one.";
     } else {
         // Check if the new username is already taken
         $stmt = $conn->prepare("SELECT username FROM administration WHERE username = ?");
@@ -27,23 +29,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($stmt->num_rows > 0) {
             $message = "Username already exists. Choose another.";
         } else {
-            // Update the username
-            $stmt = $conn->prepare("UPDATE administration SET username = ? WHERE username = ?");
-            $stmt->bind_param("ss", $new_username, $username);
+            // Update the username securely
+            $update_stmt = $conn->prepare("UPDATE administration SET username = ? WHERE username = ?");
+            $update_stmt->bind_param("ss", $new_username, $username);
 
-            if ($stmt->execute()) {
-                $_SESSION['username'] = $new_username; // Update session variable
+            if ($update_stmt->execute()) {
+                $_SESSION['username'] = $new_username; // Update session
                 $message = "Username updated successfully.";
             } else {
                 $message = "Error updating username.";
             }
+
+            $update_stmt->close();
         }
+
         $stmt->close();
     }
 }
+
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
