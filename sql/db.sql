@@ -132,30 +132,31 @@ INSERT INTO Books (name, category, price) VALUES
 CREATE TABLE uniform_prices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     uniform_type ENUM('Normal', 'PE') NOT NULL,
-    item_name VARCHAR(100) NOT NULL,
-    size VARCHAR(20) NOT NULL,
-    price DECIMAL(10,2) NOT NULL,
-    UNIQUE (uniform_type, item_name, size)  -- Ensures no duplicate entries
-);
-
-CREATE TABLE uniform_purchases (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    student_name VARCHAR(100) NOT NULL,
-    admission_no VARCHAR(50) NOT NULL,
-    uniform_id INT NOT NULL,
-    quantity INT NOT NULL DEFAULT 1,
-    total_price DECIMAL(10,2) NOT NULL,
-    amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    balance DECIMAL(10,2) GENERATED ALWAYS AS (total_price - amount_paid) STORED,
-    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (uniform_id) REFERENCES uniform_prices(id) ON DELETE CASCADE
+    size VARCHAR(10) NOT NULL,
+    price DECIMAL(10,2) NOT NULL
 );
 
 CREATE TABLE uniform_payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    receipt_number VARCHAR(20) UNIQUE NOT NULL,
     purchase_id INT NOT NULL,
     amount_paid DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('Cash', 'Card', 'Mobile Payment') NOT NULL,
+    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (purchase_id) REFERENCES uniform_purchases(id) ON DELETE CASCADE
+    FOREIGN KEY (purchase_id) REFERENCES uniform_purchases(id)
+);
+
+
+CREATE TABLE uniform_purchases (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    receipt_number VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    admission_no VARCHAR(20) NOT NULL,
+    uniform_id INT NOT NULL,
+    quantity INT NOT NULL,
+    total_price DECIMAL(10,2) NOT NULL,
+    amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
+    balance DECIMAL(10,2) NOT NULL DEFAULT 0,
+    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uniform_id) REFERENCES uniform_prices(id)
 );
