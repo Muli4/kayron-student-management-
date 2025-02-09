@@ -41,8 +41,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = $student['name'];
     $class = $student['class'];
 
-    // Generate a unique receipt number
-    $receipt_number = uniqid("REC-");
+    // Generate a unique receipt number (Secure & Unique)
+    $receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4)));
 
     // Fetch current week's record
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
@@ -72,7 +72,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $balance = $week_data['balance'];
     $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
-    // Distribute payment
+    // Distribute payment across the week
     foreach ($days as $day) {
         if ($balance <= 0 || $amount_paid <= 0) break;
 
@@ -90,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Handle overpayment
+    // Handle overpayment by advancing to future weeks
     while ($amount_paid > 0) {
         $week_number++;
         $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number, payment_type) VALUES (?, 0, ?, ?, ?)");
@@ -113,7 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Insert transaction record into lunch_fee_transactions
     $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_number, $original_amount_paid, $payment_type);
+    $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amount_paid, $payment_type);
     $stmt->execute();
     $stmt->close();
 
