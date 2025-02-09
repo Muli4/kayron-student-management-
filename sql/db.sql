@@ -136,27 +136,25 @@ CREATE TABLE uniform_prices (
     price DECIMAL(10,2) NOT NULL
 );
 
-CREATE TABLE uniform_payments (
+CREATE TABLE IF NOT EXISTS uniform_purchases (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    receipt_number VARCHAR(20) UNIQUE NOT NULL,
-    purchase_id INT NOT NULL,
-    amount_paid DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
-    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (purchase_id) REFERENCES uniform_purchases(id)
+    receipt_number VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    admission_no VARCHAR(50) NOT NULL,
+    total_price DECIMAL(10, 2) NOT NULL,
+    amount_paid DECIMAL(10, 2) NOT NULL,
+    balance DECIMAL(10, 2) NOT NULL,
+    payment_type VARCHAR(50) DEFAULT 'Cash',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-
-CREATE TABLE uniform_purchases (
+CREATE TABLE IF NOT EXISTS uniform_purchase_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    receipt_number VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    admission_no VARCHAR(20) NOT NULL,
-    uniform_id INT NOT NULL,
-    quantity INT NOT NULL,
-    total_price DECIMAL(10,2) NOT NULL,
-    amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0,
-    balance DECIMAL(10,2) NOT NULL DEFAULT 0,
-    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (uniform_id) REFERENCES uniform_prices(id)
+    purchase_id INT,
+    uniform_id INT,
+    quantity INT,
+    subtotal DECIMAL(10, 2),
+    FOREIGN KEY (purchase_id) REFERENCES uniform_purchases(id) ON DELETE CASCADE,
+    FOREIGN KEY (uniform_id) REFERENCES uniform_prices(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
