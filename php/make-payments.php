@@ -41,7 +41,6 @@
             <option value="school_fees">School Fees</option>
             <option value="lunch_fees">Lunch Fees</option>
             <option value="admission_fee">Admission Fee</option>
-            <option value="school_diary">School Diary</option>
         </select>
         </div>
 
