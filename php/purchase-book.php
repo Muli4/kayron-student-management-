@@ -9,8 +9,7 @@ if ($conn->connect_error) {
 }
 
 // Generate a unique receipt number
-$receipt_no = "RCPT-" . strtoupper(substr(md5(uniqid()), 0, 8));
-
+$receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4)));
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -18,7 +17,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $book_id = $_POST['book_id'];
 
     // Fetch student details
-    $student_query = "SELECT name, class, term FROM student_records WHERE admission_no = ?";
+    $student_query = "SELECT name, class FROM student_records WHERE admission_no = ?";
     $stmt = $conn->prepare($student_query);
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
@@ -28,7 +27,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $student = $student_result->fetch_assoc();
         $name = $student['name'];
         $class = $student['class'];
-        $term = $student['term'];
 
         // Fetch book details (name & price)
         $book_query = "SELECT book_name, price FROM Books WHERE book_id = ?";
@@ -42,11 +40,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $book_name = $book['book_name'];
             $price = $book['price'];
 
-            // Insert into Book_Purchases
-            $insert_query = "INSERT INTO Book_Purchases (receipt_no, admission_no, name, class, term, book_id, book_name, quantity, total_price) 
-                             VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)";
+            // Insert into Book_Purchases (Removed `term`)
+            $insert_query = "INSERT INTO Book_Purchases (receipt_no, admission_no, name, class, book_id, book_name, quantity, total_price) 
+                             VALUES (?, ?, ?, ?, ?, ?, 1, ?)";
             $stmt = $conn->prepare($insert_query);
-            $stmt->bind_param("ssssissd", $receipt_no, $admission_no, $name, $class, $term, $book_id, $book_name, $price);
+            $stmt->bind_param("ssssisd", $receipt_no, $admission_no, $name, $class, $book_id, $book_name, $price);
 
             if ($stmt->execute()) {
                 $_SESSION['success'] = "<div class='success-message'>Purchase recorded successfully!</div>";
