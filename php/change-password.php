@@ -9,31 +9,35 @@ if (!isset($_SESSION['username'])) {
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     include 'db.php'; // Ensure database connection is included
-    
-    $current_password = $_POST['current_password'];
-    $new_password = $_POST['new_password'];
-    $confirm_password = $_POST['confirm_password'];
+
+    $current_password = trim($_POST['current_password']);
+    $new_password = trim($_POST['new_password']);
+    $confirm_password = trim($_POST['confirm_password']);
     $username = $_SESSION['username'];
 
     // Validate form data
     if ($new_password !== $confirm_password) {
         $error_message = "New password and confirmation do not match!";
     } else {
-        // Fetch the user's current password from the database
+        // Fetch the user's current hashed password from the database
         $stmt = $conn->prepare("SELECT password FROM administration WHERE username = ?");
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $stmt->store_result();
-        
+
         if ($stmt->num_rows === 1) {
             $stmt->bind_result($db_password);
             $stmt->fetch();
 
-            // Compare plain text current password
-            if ($current_password === $db_password) {
-                // Update the password in the database (plain text)
+            // Hash the entered current password to compare with the stored hashed password
+            if (hash('sha256', $current_password) === $db_password) {
+                // Hash the new password before storing it
+                $hashed_new_password = hash('sha256', $new_password);
+
+                // Update the password in the database
                 $update_stmt = $conn->prepare("UPDATE administration SET password = ? WHERE username = ?");
-                $update_stmt->bind_param("ss", $new_password, $username);
+                $update_stmt->bind_param("ss", $hashed_new_password, $username);
+
                 if ($update_stmt->execute()) {
                     $success_message = "Password changed successfully!";
                 } else {
@@ -53,6 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 ?>
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -66,11 +71,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h2>Change Password</h2>
         
         <?php if (isset($success_message)): ?>
-            <div class="change-message"><?php echo $success_message; ?></div>
+            <div class="success-message"><?php echo $success_message; ?></div>
         <?php endif; ?>
 
         <?php if (isset($error_message)): ?>
-            <div class="change-error"><?php echo $error_message; ?></div>
+            <div class="error-message"><?php echo $error_message; ?></div>
         <?php endif; ?>
 
         <form action="change-password.php" method="POST">
