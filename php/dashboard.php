@@ -47,7 +47,7 @@ if (!isset($_SESSION['username'])) {
                 <a href="#" class="link-card">Lunch Fees</a>
                 <a href="./make-payments.php" class="link-card">Make Payments</a>
                 <a href="./purchase-book.php" class="link-card">purchase diary | assessment</a>
-                <a href="#" class="link-card">Class Update</a>
+                <a href="./process-uniform.php" class="link-card">purchase uniform</a>
                 <a href="#" class="link-card">Update Details</a>
                 <a href="#" class="link-card">Search Receipt</a>
                 <a href="#" class="link-card">Print Receipt</a>
