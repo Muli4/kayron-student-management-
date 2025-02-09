@@ -82,56 +82,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Uniform Purchase</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            margin: 20px;
-        }
-        .container {
-            width: 50%;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-        h2 {
-            text-align: center;
-        }
-        label {
-            font-weight: bold;
-        }
-        select, input {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        button {
-            width: 100%;
-            padding: 10px;
-            background-color: #28a745;
-            border: none;
-            color: white;
-            font-size: 16px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .error-message {
-            color: red;
-            text-align: center;
-        }
-        .success-message {
-            color: green;
-            text-align: center;
-        }
-    </style>
+    <link rel="stylesheet" href="../style/style.css">
     <script>
         function updateTotalPrice() {
             var total = 0;
@@ -162,8 +113,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </script>
 </head>
 <body>
-    <div class="container">
-        <h2>Uniform Purchase</h2>
+    <div class="heading-all">
+        <h2 class="title">Kayron Junior School</h2>
+    </div>
+    <div class="add-heading">
+        <h2>Purchase  Uniform</h2>
+    </div>
+    <div class="lunch-form">
         <?php
         if (isset($_SESSION['message'])) {
             echo $_SESSION['message'];
@@ -173,38 +129,53 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <form action="process-uniform.php" method="POST">
             <input type="hidden" name="action" value="purchase">
 
-            <label for="admission_no">Admission Number:</label>
-            <input type="text" id="admission_no" name="admission_no" required oninput="fetchStudentName()">
+            <div class="form-group">
+                <label for="admission_no">Admission Number:</label>
+                <input type="text" id="admission_no" name="admission_no" required oninput="fetchStudentName()">
+            </div>
 
-            <label for="name">Student Name:</label>
-            <input type="text" id="name" name="name" required>
+            <div class="form-group">
+                <label for="name">Student Name:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
 
             <h3>Select Uniforms:</h3>
             <div id="uniforms-list">
-                <?php 
-                // Fetch uniforms from the database
-                $stmt = $conn->prepare("SELECT id, uniform_type, size, price FROM uniform_prices");
-                $stmt->execute();
-                $result = $stmt->get_result();
-                while ($uniform = $result->fetch_assoc()): 
-                ?>
-                    <div class="uniform-item">
-                        <label>
-                            <input type="checkbox" name="uniforms[<?= $uniform['id']; ?>]" value="1">
-                            <?= $uniform['uniform_type'] . " - " . $uniform['size'] . " (KES " . $uniform['price'] . ")"; ?>
-                        </label>
-                        <input type="number" class="quantity" name="uniforms[<?= $uniform['id']; ?>]" data-price="<?= $uniform['price']; ?>" min="0" value="0" onchange="updateTotalPrice()">
-                    </div>
-                <?php endwhile; ?>
+            <?php
+            // Fetch uniforms from the database
+            $stmt = $conn->prepare("SELECT id, uniform_type, size, price FROM uniform_prices");
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($uniform = $result->fetch_assoc()):
+            ?>
+            <div class="uniform-item">
+                <label class="uniform-label">
+                    <input type="checkbox" name="uniforms[<?= $uniform['id']; ?>]" value="1">
+                    <span class="uniform-info"><?= $uniform['uniform_type'] . " - " . $uniform['size'] . " (KES " . $uniform['price'] . ")"; ?></span>
+                </label>
+                <input type="number" class="quantity" name="uniforms[<?= $uniform['id']; ?>]" data-price="<?= $uniform['price']; ?>" min="0" value="0" onchange="updateTotalPrice()">
+            </div>
+            <?php endwhile; ?>
             </div>
 
-            <p id="total_price" style="text-align:center; font-weight:bold;">Total Price: KES 0.00</p>
+            <div class="from-group">
+                <p id="total_price">Total Price: KES 0.00</p>
+            </div>
 
-            <label for="amount_paid">Amount Paid (KES):</label>
-            <input type="number" name="amount_paid" min="0" required>
+            <div class="form-group">
+                <label for="amount_paid">Amount Paid (KES):</label>
+                <input type="number" name="amount_paid" min="0" required>
+            </div>
 
-            <button type="submit">Submit Purchase</button>
+            <div class="button-container">
+                <button type="submit" class="add-student-btn">Purchase</button>
+                <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
+        </div>
         </form>
     </div>
+
+    <footer class="footer">
+        <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
+    </footer>
 </body>
 </html>
