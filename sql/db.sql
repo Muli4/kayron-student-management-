@@ -115,7 +115,6 @@ CREATE TABLE Book_Purchases (
     admission_no VARCHAR(15) NOT NULL,
     name VARCHAR(100) NOT NULL,
     class ENUM('babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6') NOT NULL,
-    term ENUM('term1','term2','term3') NOT NULL,
     book_id INT NOT NULL,
     book_name VARCHAR(50) NOT NULL,
     quantity INT NOT NULL,
@@ -128,3 +127,35 @@ INSERT INTO Books (name, category, price) VALUES
 ('School Diary', 'Diary', 300.00),
 ('Assessment Book', 'Assessment Book', 250.00);
 -- books records end here
+
+-- school uniform
+CREATE TABLE uniform_prices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uniform_type ENUM('Normal', 'PE') NOT NULL,
+    item_name VARCHAR(100) NOT NULL,
+    size VARCHAR(20) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    UNIQUE (uniform_type, item_name, size)  -- Ensures no duplicate entries
+);
+
+CREATE TABLE uniform_purchases (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_name VARCHAR(100) NOT NULL,
+    admission_no VARCHAR(50) NOT NULL,
+    uniform_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    total_price DECIMAL(10,2) NOT NULL,
+    amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    balance DECIMAL(10,2) GENERATED ALWAYS AS (total_price - amount_paid) STORED,
+    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (uniform_id) REFERENCES uniform_prices(id) ON DELETE CASCADE
+);
+
+CREATE TABLE uniform_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    purchase_id INT NOT NULL,
+    amount_paid DECIMAL(10,2) NOT NULL,
+    payment_type ENUM('Cash', 'Card', 'Mobile Payment') NOT NULL,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (purchase_id) REFERENCES uniform_purchases(id) ON DELETE CASCADE
+);
