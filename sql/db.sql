@@ -84,7 +84,7 @@ create table student_records(
     wednesday DECIMAL(10, 2) DEFAULT 0,
     thursday DECIMAL(10, 2) DEFAULT 0,
     friday DECIMAL(10, 2) DEFAULT 0,
-    payment_type ENUM('Cash', 'Liquid Money') NOT NULL,
+    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL
 );
 
 CREATE TABLE lunch_fee_transactions (
@@ -94,7 +94,7 @@ CREATE TABLE lunch_fee_transactions (
     name varchar(50) NOT NULL,
     class ENUM('babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6') NOT NULL,
     amount_paid DECIMAL(10, 2) NOT NULL,
-    payment_type ENUM('Cash', 'Liquid Money') NOT NULL,
+    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- lunch fee records end here
