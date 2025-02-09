@@ -9,7 +9,8 @@ if ($conn->connect_error) {
 }
 
 // Generate a unique receipt number
-$receipt_no = "RCPT-" . strtoupper(uniqid());
+$receipt_no = "RCPT-" . strtoupper(substr(md5(uniqid()), 0, 8));
+
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
