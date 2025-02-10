@@ -13,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = $_POST['admission_no'];
     $selected_books = $_POST['books'] ?? []; // Ensure it's an array
     $quantities = $_POST['quantities'] ?? [];
-    $amounts_paid = $_POST['amounts_paid'] ?? []; // Amount paid per book
+    $total_amount_paid = floatval($_POST['amount_paid']); // Total amount paid
     $payment_type = $_POST['payment_type'];
 
     if (empty($selected_books)) {
@@ -37,11 +37,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conn->begin_transaction();
 
         try {
-            // Process each selected book
+            $total_cost = 0;
+            $book_data = [];
+
+            // First loop: Calculate total cost
             foreach ($selected_books as $index => $book_id) {
-                $receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4))) . time(); // Unique receipt per book
                 $quantity = (int)$quantities[$index];
-                $amount_paid = floatval($amounts_paid[$index]); // Track paid amount per book
 
                 // Fetch book details
                 $book_query = "SELECT book_name, price FROM book_prices WHERE book_id = ?";
@@ -56,13 +57,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $price = $book['price'];
                     $total_price = $price * $quantity;
 
-                    // Insert each book purchase as a separate row with a unique receipt number
-                    $insert_query = "INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, total_price, amount_paid, payment_type) 
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)";
-                    $stmt = $conn->prepare($insert_query);
-                    $stmt->bind_param("ssssdds", $receipt_no, $admission_no, $name, $book_name, $total_price, $amount_paid, $payment_type);
-                    $stmt->execute();
+                    // Store book data for later
+                    $book_data[] = [
+                        'book_id' => $book_id,
+                        'book_name' => $book_name,
+                        'price' => $price,
+                        'quantity' => $quantity,
+                        'total_price' => $total_price
+                    ];
+
+                    $total_cost += $total_price;
                 }
+            }
+
+            // Second loop: Insert into database
+            foreach ($book_data as $book) {
+                $receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4))) . time(); // Unique receipt per book
+                
+                // Proportionally distribute the amount paid
+                $amount_paid = ($book['total_price'] / $total_cost) * $total_amount_paid;
+
+                // Insert each book purchase as a separate row with a unique receipt number
+                $insert_query = "INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, payment_type) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $conn->prepare($insert_query);
+                $stmt->bind_param(
+                    "ssssidds",
+                    $receipt_no,
+                    $admission_no,
+                    $name,
+                    $book['book_name'],
+                    $book['quantity'],
+                    $book['total_price'],
+                    $amount_paid,
+                    $payment_type
+                );
+                $stmt->execute();
             }
 
             // Commit transaction
@@ -82,6 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     exit();
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -129,14 +160,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="book-item">
                 <label class="book-label">
                     <input type="checkbox" name="books[]" value="<?= $book['book_id']; ?>" class="book-checkbox">
-                    <span class="book-info"><?= $book['book_name'] . "  - KES " . $book['price']; ?></span>
+                    <span class="book-info"><?= $book['book_name'] . " (  KES " . $book['price'] . ")"; ?></span>
                 </label>
                 <input type="number" class="quantity" name="quantities[]" data-price="<?= $book['price']; ?>" min="1" value="1" >
             </div>
         <?php endwhile; ?>
         </div>
 
-        <div class="form-group">
+        <div class="">
             <p id="total_price">Total Price: KES 0.00</p>
         </div>
 
