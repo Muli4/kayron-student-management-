@@ -66,3 +66,21 @@ function updateFormAction() {
 
 // Set initial form action
 updateFormAction();
+// show pasword
+document.addEventListener("DOMContentLoaded", function () {
+    const togglePassword = document.getElementById("togglePassword");
+    const passwordInput = document.getElementById("password");
+
+    if (togglePassword) {
+        togglePassword.addEventListener("click", function () {
+            if (passwordInput.type === "password") {
+                passwordInput.type = "text"; // Show password
+                this.textContent = "🙈"; // Change icon
+            } else {
+                passwordInput.type = "password"; // Hide password
+                this.textContent = "👁️"; // Change icon
+            }
+        });
+    }
+});
+
