@@ -88,11 +88,33 @@ document.addEventListener("DOMContentLoaded", function () {
 function updateTotalPrice() {
     var total = 0;
     document.querySelectorAll(".uniform-item").forEach(function(row) {
-        var quantity = row.querySelector(".quantity").value;
-        var price = row.querySelector(".quantity").dataset.price;
-        if (quantity > 0) {
+        var checkbox = row.querySelector("input[type='checkbox']");
+        var quantityInput = row.querySelector(".quantity");
+        var price = parseFloat(quantityInput.dataset.price) || 0;
+        var quantity = parseInt(quantityInput.value) || 0;
+
+        // Only add price if the checkbox is checked and quantity is greater than 0
+        if (checkbox.checked && quantity > 0) {
             total += price * quantity;
         }
     });
     document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
 }
+
+// Attach event listeners to checkboxes and quantity inputs
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".uniform-item").forEach(function(row) {
+        var checkbox = row.querySelector("input[type='checkbox']");
+        var quantityInput = row.querySelector(".quantity");
+
+        // Update total price when checkbox is clicked
+        checkbox.addEventListener("change", function() {
+            if (!this.checked) {
+                quantityInput.value = 0; // Reset quantity if unchecked
+            }
+            updateTotalPrice();
+        });
+        // Update total price when quantity is changed
+        quantityInput.addEventListener("input", updateTotalPrice);
+    });
+});    
