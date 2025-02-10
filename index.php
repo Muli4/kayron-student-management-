@@ -23,12 +23,33 @@
             </div>
             <div class="input-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Please enter password" required>
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password" placeholder="Please enter password">
+                    <span id="togglePassword">👁️</span>
+                </div>
             </div>
             <button type="submit">Login</button>
         </form>
     </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+    const togglePassword = document.getElementById("togglePassword");
+    const passwordInput = document.getElementById("password");
 
+    if (togglePassword) {
+        togglePassword.addEventListener("click", function () {
+            if (passwordInput.type === "password") {
+                passwordInput.type = "text"; // Show password
+                this.textContent = "🙈"; // Change icon
+            } else {
+                passwordInput.type = "password"; // Hide password
+                this.textContent = "👁️"; // Change icon
+            }
+        });
+    }
+});
+
+    </script>
     <script src="./js/java-script.js"></script>
 </body>
 </html>
