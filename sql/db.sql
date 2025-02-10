@@ -8,9 +8,9 @@ CREATE TABLE administration (
 );
 
 INSERT INTO administration(username,password,email) VALUES
-('patricia','pasha2020','pasha2020@gmail.com'),
+('patricia',SHA2('pasha2020', 256),'pasha2020@gmail.com'),
 ('Emmaculate',SHA2('Emma2020', 256),'immah2008@gmail.com'),
-('admin','admin2020','jonesmusyoki.jm@gmail.com');
+('admin',SHA2('admin2020', 256),'jonesmusyoki.jm@gmail.com');
 --administrator details end here
 
 
