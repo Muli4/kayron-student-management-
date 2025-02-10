@@ -64,6 +64,21 @@ body {
     border-radius: 5px;
     cursor: pointer;
 }
+.password-wrapper{
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.password-wrapper input{
+    flex: 1;
+    padding-right: 30px;
+}
+#togglePassword{
+    position: absolute;
+    right: 10px;
+    cursor: pointer;
+    font-size: 18px;
+}
 /* login form ends here */
 
 /* dashboard starts here */
