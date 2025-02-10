@@ -124,7 +124,7 @@ CREATE TABLE Book_Purchases (
 );
 
 INSERT INTO Books (name, category, price) VALUES
-('School Diary', 'Diary', 300.00),
+('School Diary', 'Diary', 100.00),
 ('Assessment Book', 'Assessment Book', 250.00);
 -- books records end here
 
