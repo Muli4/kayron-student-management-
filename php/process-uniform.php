@@ -58,13 +58,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt->execute();
             }
 
-            // Insert payment record if any amount was paid
-            if ($amount_paid > 0) {
-                $stmt = $conn->prepare("INSERT INTO uniform_purchases (receipt_number, purchase_id, amount_paid, payment_type) VALUES (?, ?, ?, ?)");
-                $stmt->bind_param("sids", $receipt_number, $purchase_id, $amount_paid, $payment_type);
-                $stmt->execute();
-            }
-
             $_SESSION['message'] = "<div class='success-message'>Uniform purchase recorded successfully!</div>";
         } else {
             $_SESSION['message'] = "<div class='error-message'>Error recording purchase!</div>";
