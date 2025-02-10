@@ -530,14 +530,16 @@ html, body {
 }
 
 /* Uniform List Styling */
-#uniforms-list {
+#uniforms-list,
+#books-list {
     margin-top: 20px;
     display: flex;
     flex-direction: column;
     gap: 15px;
 }
 
-.uniform-item {
+.uniform-item,
+.book-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -546,15 +548,17 @@ html, body {
     border-radius: 5px;
     border: 1px solid #ddd;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.uniform-item:hover {
+.uniform-item:hover,
+.book-item:hover {
     transform: scale(1.02);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.uniform-label {
+.uniform-label,
+.book-label {
     display: flex;
     align-items: center;
     font-size: 14px;
@@ -563,11 +567,13 @@ html, body {
     margin-right: 10px;
 }
 
-.uniform-label input[type="checkbox"] {
+.uniform-label input[type="checkbox"],
+.book-label input[type="checkbox"] {
     margin-right: 10px;
 }
 
-.uniform-info {
+.uniform-info,
+.book-info {
     font-weight: bold;
     color: #555;
 }
@@ -585,7 +591,20 @@ html, body {
     border-color: #28a745;
     outline: none;
 }
-
+#total_price {
+    font-size: 18px;
+    font-weight: bold;
+    color: #555; /* Bootstrap danger red */
+    background-color: #f9f9f9; /* Light red background */
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd; /* Slight border for contrast */
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 100%;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
 /* Mobile Responsive Styles */
 @media screen and (max-width: 768px) {
     input[type="file"]{
