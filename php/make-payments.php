@@ -11,11 +11,12 @@
 <div class="heading-all">
         <h2 class="title">Kayron Junior School</h2>
     </div>
+    
+
+<div class="lunch-form">
     <div class="add-heading">
         <h2>Make Payments</h2>
     </div>
-
-<div class="lunch-form">
     <form id="paymentForm" action="" method="POST">
     
     <?php
@@ -71,7 +72,7 @@
     </div>
 </body>-->
 
-<footer class="footer">
+<footer class="footer-dash">
         <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
     </footer>
 <script src="../js/java-script.js"></script>
