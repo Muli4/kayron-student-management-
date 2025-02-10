@@ -118,3 +118,31 @@ document.addEventListener("DOMContentLoaded", function () {
         quantityInput.addEventListener("input", updateTotalPrice);
     });
 });    
+
+// purchase book
+document.addEventListener("DOMContentLoaded", function () {
+    function updateTotalPrice() {
+        let total = 0;
+        
+        document.querySelectorAll('.book-checkbox:checked').forEach(function (checkbox) {
+            let quantityInput = checkbox.closest('.book-item').querySelector('.quantity');
+            let price = parseFloat(quantityInput.getAttribute('data-price')) || 0;
+            let quantity = parseInt(quantityInput.value) || 1;
+            total += price * quantity;
+        });
+
+        document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
+    }
+
+    // Attach event listeners
+    document.querySelectorAll('.book-checkbox').forEach(function (checkbox) {
+        checkbox.addEventListener('change', updateTotalPrice);
+    });
+
+    document.querySelectorAll('.quantity').forEach(function (input) {
+        input.addEventListener('input', updateTotalPrice);
+    });
+
+    // Trigger the calculation once on page load
+    updateTotalPrice();
+});
