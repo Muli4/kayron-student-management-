@@ -23,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Compare hashed passwords (entered vs stored)
         if ($hashed_password === $db_password) {
             $_SESSION['username'] = $username;
-            $_SESSION['message'] = "Login successful!";
+            $_SESSION['message'] = "";
             header("Location: dashboard.php");
             exit();
         } else {
