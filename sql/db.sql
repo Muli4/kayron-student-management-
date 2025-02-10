@@ -164,3 +164,16 @@ INSERT INTO uniform_prices (uniform_type, size, price) VALUES
 ('Track Suit Size', '20-26', 1800.00),
 ('Track Suit Size', '28-32', 2000.00);
 
+-- other payments
+CREATE TABLE others (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    receipt_number VARCHAR(50) NOT NULL UNIQUE,
+    admission_no VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    fee_type ENUM('Admission', 'Activity', 'Exam', 'Interview') NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_date DATE NOT NULL DEFAULT CURDATE(),
+    term ENUM('Term 1', 'Term 2', 'Term 3') DEFAULT NULL,
+    is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
+    INDEX (admission_no)
+);
