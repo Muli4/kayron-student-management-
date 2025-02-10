@@ -225,7 +225,7 @@ document.addEventListener("DOMContentLoaded", function () {
     updateTotalPrice();
 });
 </script>
-
+<script src="../js/java-script.js"></script>
 </body>
 </html>
 
