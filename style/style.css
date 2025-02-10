@@ -5,11 +5,12 @@
     box-sizing: border-box;
     font-family: Arial, sans-serif;
 }
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
+html, body {
+    height: 100%;
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
 }
 /* login form starts here */
 .login-body
@@ -193,7 +194,9 @@ body {
 }
 .main-content 
 {
-    margin-left: 220px;
+    min-height: calc(100vh - 60px);
+    padding-bottom: 60px;
+    margin-left: 200px;
     padding: 20px;
     transition: margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
     width: calc(100% - 220px);
@@ -459,18 +462,23 @@ body {
 {
     text-align: center;
     text-transform: uppercase;
-font-weight: bold;
+    font-weight: bold;
 }
 
 /*  lunch fee payment */
 .lunch-form {
-    max-width: 400px;
-    margin: 0 auto;
+    width: 100%;  /* Takes full width inside .main-content */
+    max-width: 400px; /* Limits form width for better layout */
+    margin: auto; /* Centers the form */
     background-color: #fff;
     padding: 30px;
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
+
 .lunch-form .form-group
 {
     flex: 1 1 calc(50% - 10px);
@@ -498,29 +506,28 @@ font-weight: bold;
 }
 
 /* footer starts here  */
-.footer
-{
+.footer-dash {
+    text-align: center;
+    padding: 15px;
+    background: #007bff;  /* Matches sidebar color */
+    color: white;
+    position: relative;
     margin-top: 10px;
-    text-align: center;
-    padding: 10px;
-    background: #333;
-    color: white;
-    position: fixed;
-    bottom: 0px;
     width: 100%;
-}
-.footer-dash
-{
-    text-align: center;
-    padding: 10px;
-    background: #333;
-    color: white;
-    position: fixed;
-    bottom: 0px;
-    width: 100%;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0px -2px 5px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease-in-out;
 }
 
-/* uniforms */
+.footer-dash p {
+    margin: 0;
+}
+
+.footer-dash:hover {
+    background: #0056b3;  /* Darker shade on hover */
+}
+
 /* Uniform List Styling */
 #uniforms-list {
     margin-top: 20px;
