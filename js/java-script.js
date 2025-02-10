@@ -84,3 +84,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 
+// purchase uniform
+function updateTotalPrice() {
+    var total = 0;
+    document.querySelectorAll(".uniform-item").forEach(function(row) {
+        var quantity = row.querySelector(".quantity").value;
+        var price = row.querySelector(".quantity").dataset.price;
+        if (quantity > 0) {
+            total += price * quantity;
+        }
+    });
+    document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
+}
