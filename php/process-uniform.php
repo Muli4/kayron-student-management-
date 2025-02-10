@@ -114,10 +114,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="heading-all">
         <h2 class="title">Kayron Junior School</h2>
     </div>
+    
+    <div class="lunch-form">
     <div class="add-heading">
         <h2>Purchase Uniform</h2>
     </div>
-    <div class="lunch-form">
         <?php
         if (isset($_SESSION['message'])) {
             echo $_SESSION['message'];
@@ -136,7 +137,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <label for="name">Student Name:</label>
                 <input type="text" id="name" name="name" required >
             </div>
-
             <h3>Select Uniforms:</h3>
             <div id="uniforms-list">
             <?php
@@ -172,7 +172,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </form>
     </div>
 
-    <footer class="footer">
+    <footer class="footer-dash">
         <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
     </footer>
     <script>
