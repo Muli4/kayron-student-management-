@@ -102,7 +102,7 @@ CREATE TABLE lunch_fee_transactions (
 
 -- books records start here
 CREATE TABLE book_prices (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    book_id INT AUTO_INCREMENT PRIMARY KEY,
     category ENUM('Diary', 'Assessment Book') NOT NULL,
     book_name VARCHAR(100) NOT NULL,
     price DECIMAL(10,2) NOT NULL
@@ -111,26 +111,15 @@ CREATE TABLE book_prices (
 CREATE TABLE book_purchases (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_number VARCHAR(50) NOT NULL UNIQUE,
-    name VARCHAR(255) NOT NULL,
     admission_no VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    book_name VARCHAR(100) NOT NULL,
     total_price DECIMAL(10, 2) NOT NULL,
     amount_paid DECIMAL(10, 2) NOT NULL,
     balance DECIMAL(10, 2) NOT NULL,
     payment_type ENUM('Cash', 'M-Pesa', 'Bank Transfer') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE TABLE book_purchase_items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    purchase_id INT,
-    book_id INT,
-    quantity INT NOT NULL,
-    subtotal DECIMAL(10, 2) NOT NULL,
-    FOREIGN KEY (purchase_id) REFERENCES book_purchases(id) ON DELETE CASCADE,
-    FOREIGN KEY (book_id) REFERENCES book_prices(id),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 
 INSERT INTO book_prices (book_name, category, price) VALUES
 ('School Diary', 'Diary', 100.00),
