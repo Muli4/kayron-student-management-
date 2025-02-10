@@ -23,14 +23,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Compare hashed passwords (entered vs stored)
         if ($hashed_password === $db_password) {
             $_SESSION['username'] = $username;
+            $_SESSION['message'] = "Login successful!";
             header("Location: dashboard.php");
             exit();
         } else {
-            header("Location: ../index.html?error=incorrect_password");
+            $_SESSION['message'] = "<div class='error-message'>Incorrect Password!</div>";
+            header("Location: ../index.php");
             exit();
         }
     } else {
-        header("Location: ../index.html?error=username_not_found");
+        $_SESSION['message'] ="<div class='error-message'>Username not found!</div>";
+        header("Location: ../index.php");
         exit();
     }
 
