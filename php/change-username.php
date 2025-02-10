@@ -4,7 +4,7 @@ include 'db.php'; // Ensure database connection
 
 // Redirect if not logged in
 if (!isset($_SESSION['username'])) {
-    header("Location: ../index.html");
+    header("Location: ../index.php");
     exit();
 }
 
