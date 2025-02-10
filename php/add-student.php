@@ -216,7 +216,7 @@ $conn->close();
         <a href="./dashboard.php">Back to dashboard <i class='bx bx-exit'></i></a>
     </div>-->
 
-    <footer class="footer">
+    <footer class="footer-dash">
         <p>&copy; <?php echo date("Y")?>Kayron Junior School. All Rights Reserved.</p>
     </footer>
     
