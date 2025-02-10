@@ -76,13 +76,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="heading-all">
         <h2 class="title">Kayron Junior School</h2>
     </div>
+    
+    <div class="lunch-form">
     <div class="add-heading">
         <h2>Purchase a Book</h2>
     </div>
-
-    <div class="lunch-form">
-
     <form action="" method="POST">
+        
     <?php
         if (isset($_SESSION['success'])) {
             echo "<p class='message success'>" . $_SESSION['success'] . "</p>";
@@ -123,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </form>
     </div>
 
-    <footer class="footer">
+    <footer class="footer-dash">
         <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
     </footer>
 </body>
