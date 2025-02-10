@@ -114,10 +114,11 @@ $conn->close();
     <div class="heading-all">
         <h2 class="title">Kayron Junior School</h2>
     </div>
+
+    <form method="post" enctype="multipart/form-data" class="add-student-form">
     <div class="add-heading">
         <h2>add student</h2>
     </div>
-    <form method="post" enctype="multipart/form-data" class="add-student-form">
     <?php
     if (isset($_SESSION['message'])) {
         echo $_SESSION['message'];
