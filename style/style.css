@@ -463,13 +463,14 @@ html, body {
     text-align: center;
     text-transform: uppercase;
     font-weight: bold;
+    margin-bottom: 20px;
 }
 
 /*  lunch fee payment */
 .lunch-form {
-    width: 100%;  /* Takes full width inside .main-content */
-    max-width: 400px; /* Limits form width for better layout */
-    margin: auto; /* Centers the form */
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
     background-color: #fff;
     padding: 30px;
     border-radius: 8px;
@@ -509,7 +510,7 @@ html, body {
 .footer-dash {
     text-align: center;
     padding: 15px;
-    background: #007bff;  /* Matches sidebar color */
+    background: #007bff;
     color: white;
     position: relative;
     margin-top: 10px;
@@ -525,7 +526,7 @@ html, body {
 }
 
 .footer-dash:hover {
-    background: #0056b3;  /* Darker shade on hover */
+    background: #0056b3;
 }
 
 /* Uniform List Styling */
