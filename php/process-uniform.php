@@ -156,7 +156,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php endwhile; ?>
             </div>
 
-            <div class="form-group">
+            <div class="">
                 <p id="total_price">Total Price: KES 0.00</p>
             </div>
 
