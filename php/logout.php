@@ -10,8 +10,8 @@ header("Pragma: no-cache");
 
 // Redirect to login and prevent back navigation
 echo "<script>
-    window.location.href = '../index.html';
-    window.history.replaceState(null, null, '../index.html');
+    window.location.href = '../index.php';
+    window.history.replaceState(null, null, '../index.php');
 </script>";
 exit();
 ?>
