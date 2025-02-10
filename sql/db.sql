@@ -131,12 +131,12 @@ INSERT INTO Books (name, category, price) VALUES
 -- school uniform
 CREATE TABLE uniform_prices (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    uniform_type ENUM('Normal', 'PE') NOT NULL,
+    uniform_type ENUM('Uniform', 'P.E T-Shirt', 'Track Suit Size 20-26', 'Track Suit Size 28-32') NOT NULL,
     size VARCHAR(10) NOT NULL,
     price DECIMAL(10,2) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS uniform_purchases (
+CREATE TABLE uniform_purchases (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_number VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -145,16 +145,24 @@ CREATE TABLE IF NOT EXISTS uniform_purchases (
     amount_paid DECIMAL(10, 2) NOT NULL,
     balance DECIMAL(10, 2) NOT NULL,
     payment_type VARCHAR(50) DEFAULT 'Cash',
+    purchase_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS uniform_purchase_items (
+CREATE TABLE uniform_purchase_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
     purchase_id INT,
     uniform_id INT,
-    quantity INT,
-    subtotal DECIMAL(10, 2),
+    quantity INT NOT NULL,
+    subtotal DECIMAL(10, 2) NOT NULL,
     FOREIGN KEY (purchase_id) REFERENCES uniform_purchases(id) ON DELETE CASCADE,
     FOREIGN KEY (uniform_id) REFERENCES uniform_prices(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+INSERT INTO uniform_prices (uniform_type, size, price) VALUES
+('Uniform', 'All Sizes', 1000.00),
+('P.E T-Shirt', 'All Sizes', 450.00),
+('Track Suit Size 20-26', '20-26', 1800.00),
+('Track Suit Size 28-32', '28-32', 2000.00);
+
