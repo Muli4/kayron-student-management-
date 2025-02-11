@@ -41,7 +41,10 @@
             <option value="">-- Select type --</option>
             <option value="school_fees">School Fees</option>
             <option value="lunch_fees">Lunch Fees</option>
-            <option value="admission_fee">Admission Fee</option>
+            <option value="admission">Admission Fee</option>
+            <option value="Activity">Activity</option>
+            <option value="Exam">Exam</option>
+            <option value="Interview">Interview</option>
         </select>
         </div>
 
@@ -51,7 +54,7 @@
         </div>
 
         <div class="form-group">
-            <label for="payment_type">Payment Method:</label>
+        <label for="payment_type">Payment Method:</label>
         <select id="payment_type" name="payment_type" required>
             <option value="">-- Select Method --</option>
             <option value="mpesa">M-Pesa</option>
@@ -76,4 +79,21 @@
         <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
     </footer>
 <script src="../js/java-script.js"></script>
+<script>
+    function updateFormAction() {
+    let feeType = document.getElementById("fee_type").value;
+    let form = document.getElementById("paymentForm");
+
+    if (feeType === "lunch_fees") {
+        form.action = "lunch-fee.php";
+    } else if (feeType === "school_fees") {
+        form.action = "school-fee-payment.php";
+    } else if (feeType === "admission" || feeType === "Activity" || feeType === "Exam" || feeType === "Interview") {
+        form.action = "student_Fees.php"; // Redirects correctly
+    } else {
+        form.action = "default-payment.php"; // Optional fallback
+    }
+}
+
+</script>
 </html>
