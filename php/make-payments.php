@@ -78,12 +78,6 @@
             </div>
         </div>
 
-        <!-- Amount Paid -->
-        <div class="form-group">
-            <label for="amount_paid">Amount Paid (KSH):</label>
-            <input type="number" id="amount_paid" name="amount_paid" placeholder="Enter amount" required>
-        </div>
-
         <!-- Payment Method Selection -->
         <div class="form-group">
             <label for="payment_type">Payment Method:</label>
@@ -109,17 +103,16 @@
 </footer>
 
 <script>
-$(document).ready(function () {
+    $(document).ready(function () {
     // Enable/disable amount input based on checkbox selection
     $("input[type='checkbox']").on("change", function () {
-        let amountInput = $(this).closest(".fee-item").find(".fee-amount"); // FIXED CLASS NAME
+        let amountInput = $(this).closest(".fee-item").find(".fee-amount");
         if ($(this).is(":checked")) {
             amountInput.prop("disabled", false);
         } else {
             amountInput.prop("disabled", true).val(""); // Clear value if unchecked
         }
         updateTotal();
-        updateFormAction();
     });
 
     // Update total whenever an amount is entered
@@ -131,29 +124,82 @@ $(document).ready(function () {
         let totalPrice = 0;
         $(".fee-amount").each(function () {
             if (!$(this).prop("disabled") && $(this).val() !== "") {
-                totalPrice += parseFloat($(this).val());
+                let value = parseFloat($(this).val());
+                if (!isNaN(value)) {
+                    totalPrice += value;
+                }
             }
         });
-        $("#total_price").text("Total Fee: KES " + totalPrice.toFixed(2)); // FIXED TEXT DISPLAY
+        $("#total_price").text("Total Fee: KES " + totalPrice.toFixed(2));
     }
 
-    function updateFormAction() {
-        let form = $("#paymentForm");
-        let schoolSelected = $("#school_fees").is(":checked");
-        let lunchSelected = $("#lunch_fees").is(":checked");
-        let othersSelected = $("#admission_fee").is(":checked") || $("#activity_fee").is(":checked") || $("#exam_fee").is(":checked") || $("#interview_fee").is(":checked");
+    $("#paymentForm").on("submit", async function (e) {
+        e.preventDefault(); // Prevent normal form submission
 
-        if (schoolSelected) {
-            form.attr("action", "school-fee-payment.php");
-        } else if (lunchSelected) {
-            form.attr("action", "lunch-fee.php");
-        } else if (othersSelected) {
-            form.attr("action", "others.php");
-        } else {
-            form.attr("action", "make-payments.php"); // Default fallback
+        let admission_no = $("#admission_no").val().trim();
+        let payment_type = $("#payment_type").val();
+        let selectedFees = [];
+
+        $("input[type='checkbox']:checked").each(function () {
+            let feeType = $(this).val();
+            let amountField = $(this).closest(".fee-item").find(".fee-amount").val().trim();
+            let amount = parseFloat(amountField);
+
+            if (!isNaN(amount) && amount > 0) {
+                selectedFees.push({ feeType: feeType, amount: amount });
+            }
+        });
+
+        if (!admission_no) {
+            alert("Please enter a valid Admission Number.");
+            return;
         }
-    }
+
+        if (selectedFees.length === 0) {
+            alert("Please select at least one fee and enter a valid amount.");
+            return;
+        }
+
+        // Disable the submit button to prevent duplicate submissions
+        $("#submitBtn").prop("disabled", true).text("Processing...");
+
+        let paymentRequests = selectedFees.map((fee) => {
+            let url = fee.feeType === "school_fees" ? "school-fee-payment.php"
+                    : fee.feeType === "lunch_fees" ? "lunch-fee.php"
+                    : "others.php";
+
+            return $.post(url, {
+                admission_no: admission_no,
+                payment_type: payment_type,
+                fee_type: fee.feeType,
+                amount: fee.amount
+            }).then(response => {
+                try {
+                    return JSON.parse(response);
+                } catch {
+                    return { error: "Invalid response from server." };
+                }
+            });
+        });
+
+        try {
+            let results = await Promise.all(paymentRequests);
+            let errors = results.filter(res => res.error);
+            
+            if (errors.length > 0) {
+                alert("Some payments failed:\n" + errors.map(e => e.error).join("\n"));
+            } else {
+                alert("All payments processed successfully!");
+                window.location.reload();
+            }
+        } catch (err) {
+            alert("An unexpected error occurred. Please try again.");
+        } finally {
+            $("#submitBtn").prop("disabled", false).text("Submit Payment");
+        }
+    });
 });
+
 </script>
 
 </body>
