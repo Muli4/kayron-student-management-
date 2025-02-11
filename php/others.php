@@ -3,58 +3,35 @@ session_start();
 
 // Database connection details
 $servername = "localhost";
-$username = "root"; // Change if different
-$password = ""; // Change if set
-$dbname = "school_database"; // Change to your database name
+$username = "root";
+$password = "";
+$dbname = "school_database";
 
 $conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die(json_encode(["error" => "Database connection failed!"]));
 }
 
 // Function to generate a unique receipt number
-function generateReceiptNumber($conn) {
-    do {
-        $receipt_number = "REC" . date("Ymd") . rand(1000, 9999);
-        $stmt = $conn->prepare("SELECT id FROM others WHERE receipt_number = ?");
-        $stmt->bind_param("s", $receipt_number);
-        $stmt->execute();
-        $stmt->store_result();
-    } while ($stmt->num_rows > 0); // Ensure uniqueness
-    $stmt->close();
-    return $receipt_number;
+function generateReceiptNumber() {
+    return "REC" . date("Ymd") . strtoupper(bin2hex(random_bytes(3))); // Unique and secure
 }
 
 // Process form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    if (!isset($_POST['fee_type']) || empty($_POST['fee_type'])) {
-        $_SESSION['message'] = "Error: No fee type selected!";
-        header("Location: make-payments.php");
-        exit;
-    }
-
-    if (!isset($_POST['amount_paid']) || empty($_POST['amount_paid'])) {
-        $_SESSION['message'] = "Error: Amount field is missing!";
-        header("Location: make-payments.php");
-        exit;
-    }
-
-    $admission_no = $_POST['admission_no'];
-    $name = $_POST['name'];
-    $fee_type = $_POST['fee_type']; // Treat fee_type as a single value
-    $amount = $_POST['amount_paid'];
-    $payment_type = $_POST['payment_type'];
+    $admission_no = trim($_POST['admission_no'] ?? '');
+    $name = trim($_POST['name'] ?? '');
+    $fee_type = trim($_POST['fee_type'] ?? '');
+    $amount = floatval($_POST['amount'] ?? 0); // Changed from amount_paid
+    $payment_type = $_POST['payment_type'] ?? 'Cash';
     $is_recurring = isset($_POST['is_recurring']) ? 1 : 0;
 
-    if (!is_numeric($amount) || $amount <= 0) {
-        $_SESSION['message'] = "Error: Invalid amount!";
-        header("Location: make-payments.php");
-        exit;
+    if (empty($admission_no) || empty($name) || empty($fee_type) || $amount <= 0) {
+        echo json_encode(["error" => "Invalid input data!"]);
+        exit();
     }
 
-    // **Retrieve the term from the students table**
+    // Retrieve the student's term
     $stmt = $conn->prepare("SELECT term FROM student_records WHERE admission_no = ?");
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
@@ -62,14 +39,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->fetch();
     $stmt->close();
 
-    // If no term is found, return an error
     if (empty($term)) {
-        $_SESSION['message'] = "Error: Student record not found or term missing!";
-        header("Location: make-payments.php");
-        exit;
+        echo json_encode(["error" => "Student record not found or term missing!"]);
+        exit();
     }
 
-    // **Check if admission fee has already been paid**
+    // Check if admission fee has already been paid
     if ($fee_type === "admission") {
         $stmt = $conn->prepare("SELECT COUNT(*) FROM others WHERE admission_no = ? AND fee_type = 'admission'");
         $stmt->bind_param("s", $admission_no);
@@ -79,31 +54,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
 
         if ($count > 0) {
-            $_SESSION['message'] = "Error: Admission fee has already been paid!";
-            header("Location: make-payments.php");
-            exit;
+            echo json_encode(["error" => "Admission fee has already been paid!"]);
+            exit();
         }
     }
 
     // Generate a receipt number
-    $receipt_number = generateReceiptNumber($conn);
+    $receipt_number = generateReceiptNumber();
 
-    // Insert into `others` table
-    $sql = "INSERT INTO others (receipt_number, admission_no, name, term, fee_type, amount, payment_type, is_recurring) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
+    // Insert payment into `others` table
+    $stmt = $conn->prepare("INSERT INTO others (receipt_number, admission_no, name, term, fee_type, amount, payment_type, is_recurring) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("sssssdsi", $receipt_number, $admission_no, $name, $term, $fee_type, $amount, $payment_type, $is_recurring);
 
     if ($stmt->execute()) {
-        $_SESSION['message'] = "Payment recorded successfully! Receipt Number: <b>$receipt_number</b>";
+        echo json_encode(["success" => true, "message" => "Payment recorded successfully!", "receipt" => $receipt_number]);
     } else {
-        $_SESSION['message'] = "Error processing payment: " . $stmt->error;
+        echo json_encode(["error" => "Error processing payment: " . $stmt->error]);
     }
-    $stmt->close();
 
-    // Redirect back to form
-    header("Location: make-payments.php");
-    exit;
+    $stmt->close();
+    exit();
 }
 
 $conn->close();
