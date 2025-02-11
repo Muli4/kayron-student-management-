@@ -170,10 +170,11 @@ CREATE TABLE others (
     receipt_number VARCHAR(50) NOT NULL UNIQUE,
     admission_no VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
+    term ENUM('Term 1', 'Term 2', 'Term 3') DEFAULT NULL,
     fee_type ENUM('Admission', 'Activity', 'Exam', 'Interview') NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
+    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    term ENUM('Term 1', 'Term 2', 'Term 3') DEFAULT NULL,
     is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
     INDEX (admission_no)
 );
