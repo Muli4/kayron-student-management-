@@ -103,7 +103,7 @@
 </footer>
 
 <script>
-    $(document).ready(function () {
+$(document).ready(function () {
     // Enable/disable amount input based on checkbox selection
     $("input[type='checkbox']").on("change", function () {
         let amountInput = $(this).closest(".fee-item").find(".fee-amount");
@@ -115,7 +115,7 @@
         updateTotal();
     });
 
-    // Update total whenever an amount is entered
+    // Update total fee whenever an amount is entered
     $(".fee-amount").on("input", function () {
         updateTotal();
     });
@@ -138,18 +138,21 @@
 
         let admission_no = $("#admission_no").val().trim();
         let payment_type = $("#payment_type").val();
+        let receipt_number = generateReceiptNumber(); // Generate the receipt number in JS
         let selectedFees = [];
 
+        // Collect selected fee types and amounts
         $("input[type='checkbox']:checked").each(function () {
             let feeType = $(this).val();
             let amountField = $(this).closest(".fee-item").find(".fee-amount").val().trim();
             let amount = parseFloat(amountField);
 
             if (!isNaN(amount) && amount > 0) {
-                selectedFees.push({ feeType: feeType, amount: amount });
+                selectedFees.push({ feeType: feeType, amount: amount, receipt_number: receipt_number });
             }
         });
 
+        // Validate inputs
         if (!admission_no) {
             alert("Please enter a valid Admission Number.");
             return;
@@ -160,19 +163,21 @@
             return;
         }
 
-        // Disable the submit button to prevent duplicate submissions
+        // Disable submit button to prevent duplicate submissions
         $("#submitBtn").prop("disabled", true).text("Processing...");
 
+        // Send all fee payments using the same generated receipt number
         let paymentRequests = selectedFees.map((fee) => {
-            let url = fee.feeType === "school_fees" ? "school-fee-payment.php"
-                    : fee.feeType === "lunch_fees" ? "lunch-fee.php"
+            let url = (fee.feeType === "school_fees") ? "school-fee-payment.php"
+                    : (fee.feeType === "lunch_fees") ? "lunch-fee.php"
                     : "others.php";
 
             return $.post(url, {
                 admission_no: admission_no,
                 payment_type: payment_type,
                 fee_type: fee.feeType,
-                amount: fee.amount
+                amount: fee.amount,
+                receipt_number: fee.receipt_number // Automatically added here
             }).then(response => {
                 try {
                     return JSON.parse(response);
@@ -189,7 +194,7 @@
             if (errors.length > 0) {
                 alert("Some payments failed:\n" + errors.map(e => e.error).join("\n"));
             } else {
-                alert("All payments processed successfully!");
+                alert("All payments processed successfully! Receipt Number: " + receipt_number);
                 window.location.reload();
             }
         } catch (err) {
@@ -198,9 +203,16 @@
             $("#submitBtn").prop("disabled", false).text("Submit Payment");
         }
     });
-});
 
+    // Function to generate a unique receipt number
+    function generateReceiptNumber() {
+        let datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        let randomPart = Math.random().toString(36).substr(2, 5).toUpperCase();
+        return "REC" + datePart + randomPart;
+    }
+});
 </script>
+
 
 </body>
 </html>
