@@ -12,148 +12,71 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Function to generate a unique receipt number
+// Function to generate a unique receipt number AFTER successful payment
 function generateReceiptNumber($conn) {
-    $receipt_number = "REC" . date("Ymd") . rand(1000, 9999);
-    $stmt = $conn->prepare("SELECT id FROM others WHERE receipt_number = ?");
-    $stmt->bind_param("s", $receipt_number);
-    $stmt->execute();
-    $stmt->store_result();
-    if ($stmt->num_rows > 0) {
-        $stmt->close();
-        return generateReceiptNumber($conn); // Retry if duplicate
-    }
+    do {
+        $receipt_number = "REC" . date("Ymd") . rand(1000, 9999);
+        $stmt = $conn->prepare("SELECT id FROM others WHERE receipt_number = ?");
+        $stmt->bind_param("s", $receipt_number);
+        $stmt->execute();
+        $stmt->store_result();
+    } while ($stmt->num_rows > 0); // Keep generating until it's unique
     $stmt->close();
     return $receipt_number;
 }
 
 // Check if form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $receipt_number = generateReceiptNumber($conn);
-    $admission_no = $_POST['admission_no'];
-    $payment_date = $_POST['payment_date'];
-
-    // Retrieve student name & term
-    $sql = "SELECT name, term FROM student_records WHERE admission_no = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $admission_no);
-    $stmt->execute();
-    $stmt->store_result();
-
-    if ($stmt->num_rows > 0) {
-        $stmt->bind_result($name, $term);
-        $stmt->fetch();
-    } else {
-        echo "Error: Admission number not found!";
+    if (!isset($_POST['fee_type']) || !is_array($_POST['fee_type'])) {
+        echo "Error: No fee type selected!";
         exit;
     }
-    $stmt->close();
 
-    // Check if admission fee has already been paid
-    $check_sql = "SELECT id FROM others WHERE admission_no = ? AND fee_type = 'Admission'";
-    $check_stmt = $conn->prepare($check_sql);
-    $check_stmt->bind_param("s", $admission_no);
-    $check_stmt->execute();
-    $check_stmt->store_result();
+    if (!isset($_POST['amount']) || !is_array($_POST['amount'])) {
+        echo "Error: Amount field is missing!";
+        exit;
+    }
 
-    $admission_fee_paid = $check_stmt->num_rows > 0; // If rows exist, admission fee is already paid
-    $check_stmt->close();
+    $admission_no = $_POST['admission_no']; // Ensure this exists in your form
+    $fees_inserted = false; // Track if at least one fee is inserted
 
     foreach ($_POST['fee_type'] as $index => $fee_type) {
-        $amount = $_POST['amount'][$index];
-        $is_recurring = isset($_POST['is_recurring'][$index]) ? 1 : 0;
+        if (!isset($_POST['amount'][$index]) || empty($_POST['amount'][$index])) {
+            echo "Error: Amount missing for fee type: " . htmlspecialchars($fee_type) . "<br>";
+            continue; // Skip this fee type
+        }
 
-        // If the fee type is "Admission" and it was already paid, prevent duplicate entry
-        if ($fee_type == "Admission" && $admission_fee_paid) {
-            echo "Error: Admission fee has already been paid for this student!";
-            continue; // Skip inserting this fee
+        $amount = $_POST['amount'][$index];
+
+        // Ensure amount is a valid number
+        if (!is_numeric($amount) || $amount <= 0) {
+            echo "Error: Invalid amount for fee type: " . htmlspecialchars($fee_type) . "<br>";
+            continue;
+        }
+
+        // Generate a receipt number only if at least one successful insertion occurs
+        if (!$fees_inserted) {
+            $receipt_number = generateReceiptNumber($conn);
+            $fees_inserted = true;
         }
 
         // Insert into `others` table
-        $sql = "INSERT INTO others (receipt_number, admission_no, name, fee_type, amount, payment_date, term, is_recurring) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO others (receipt_number, admission_no, fee_type, amount) VALUES (?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssssdsis", $receipt_number, $admission_no, $name, $fee_type, $amount, $payment_date, $term, $is_recurring);
+        $stmt->bind_param("sssd", $receipt_number, $admission_no, $fee_type, $amount);
 
         if (!$stmt->execute()) {
-            echo "Error: " . $stmt->error;
+            echo "Error inserting fee type: " . htmlspecialchars($fee_type) . " - " . $stmt->error . "<br>";
         }
         $stmt->close();
     }
 
-    echo "Fees recorded successfully!<br>Generated Receipt Number: <b>$receipt_number</b>";
+    if ($fees_inserted) {
+        echo "Fees recorded successfully!<br>Generated Receipt Number: <b>$receipt_number</b>";
+    } else {
+        echo "No fees were recorded.";
+    }
+
     $conn->close();
 }
-
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiple Fees Payment</title>
-</head>
-<body>
-    <h2>Enter Multiple Fee Payment Details</h2>
-    <form method="POST" action="">
-        <label>Admission Number:</label>
-        <input type="text" name="admission_no" required><br><br>
-
-        <label>Payment Date:</label>
-        <input type="date" name="payment_date" required><br><br>
-
-        <div id="fee-section">
-            <div class="fee-entry">
-                <label>Fee Type:</label>
-                <select name="fee_type[]" required>
-                    <option value="Admission">Admission</option>
-                    <option value="Activity">Activity</option>
-                    <option value="Exam">Exam</option>
-                    <option value="Interview">Interview</option>
-                </select>
-
-                <label>Amount (KSH):</label>
-                <input type="number" name="amount[]" step="0.01" required>
-
-                <label>Recurring Payment:</label>
-                <input type="checkbox" name="is_recurring[]">
-                <button type="button" onclick="removeFee(this)">Remove</button>
-                <br><br>
-            </div>
-        </div>
-
-        <button type="button" onclick="addFee()">Add Another Fee</button><br><br>
-        <button type="submit">Submit Payment</button>
-    </form>
-
-    <script>
-        function addFee() {
-            const feeSection = document.getElementById('fee-section');
-            const newEntry = document.createElement('div');
-            newEntry.classList.add('fee-entry');
-            newEntry.innerHTML = `
-                <label>Fee Type:</label>
-                <select name="fee_type[]" required>
-                    <option value="Admission">Admission</option>
-                    <option value="Activity">Activity</option>
-                    <option value="Exam">Exam</option>
-                    <option value="Interview">Interview</option>
-                </select>
-
-                <label>Amount (KSH):</label>
-                <input type="number" name="amount[]" step="0.01" required>
-
-                <label>Recurring Payment:</label>
-                <input type="checkbox" name="is_recurring[]">
-                <button type="button" onclick="removeFee(this)">Remove</button>
-                <br><br>
-            `;
-            feeSection.appendChild(newEntry);
-        }
-
-        function removeFee(button) {
-            button.parentElement.remove();
-        }
-    </script>
-</body>
-</html>
