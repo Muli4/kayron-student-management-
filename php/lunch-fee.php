@@ -9,7 +9,7 @@ $database = "school_database";
 
 $conn = new mysqli($servername, $username, $password, $database);
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die(json_encode(["error" => "Database connection failed!"]));
 }
 
 // Default lunch fee values
@@ -18,12 +18,12 @@ $total_weekly_fee = 350;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = trim($_POST['admission_no'] ?? '');
-    $amount = floatval($_POST['amount'] ?? 0); // Updated variable
+    $amount = floatval($_POST['amount'] ?? 0);
     $payment_type = $_POST['payment_type'] ?? 'Cash';
+    $receipt_no = trim($_POST['receipt_number'] ?? ''); // Use frontend-generated receipt number
 
-    if ($amount <= 0) {
-        $_SESSION['message'] = "<div class='error-message'>Invalid payment amount.</div>";
-        header("Location: make-payments.php");
+    if (empty($admission_no) || $amount <= 0 || empty($receipt_no)) {
+        echo json_encode(["error" => "Invalid input data!"]);
         exit();
     }
 
@@ -39,16 +39,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->close();
 
     if (!$student) {
-        $_SESSION['message'] = "<div class='error-message'>Error: Admission number not found in student records!</div>";
-        header("Location: make-payments.php");
+        echo json_encode(["error" => "Error: Admission number not found in student records!"]);
         exit();
     }
 
     $name = $student['name'];
     $class = $student['class'];
-
-    // Generate a unique receipt number
-    $receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4)));
 
     // Fetch the current week's record
     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
@@ -117,7 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Insert transaction record
+    // Insert transaction record with frontend-generated receipt number
     $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amount, $payment_type);
     $stmt->execute();
