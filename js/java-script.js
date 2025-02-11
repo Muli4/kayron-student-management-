@@ -62,12 +62,11 @@ function updateFormAction() {
     } else if (feeType === "school_fees") {
         form.action = "school-fee-payment.php";
     } else if (feeType === "admission" || feeType === "Activity" || feeType === "Exam" || feeType === "Interview") {
-        form.action = "student_Fees.php"; // Redirects correctly
+        form.action = "others.php"; // Redirects correctly
     } else {
-        form.action = "default-payment.php"; // Optional fallback
+        form.action = "make-payments.php"; // Optional fallback
     }
 }
-
 
 // Set initial form action
 updateFormAction();
