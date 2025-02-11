@@ -5,7 +5,6 @@ $username = "root"; // Change if different
 $password = ""; // Change if set
 $dbname = "school_database"; // Change to your database name
 
-// Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
 
 // Check connection
@@ -15,8 +14,7 @@ if ($conn->connect_error) {
 
 // Function to generate a unique receipt number
 function generateReceiptNumber($conn) {
-    $receipt_number = "REC" . date("Ymd") . rand(1000, 9999); // Example: REC202402101234
-    // Ensure it's unique in the database
+    $receipt_number = "REC" . date("Ymd") . rand(1000, 9999);
     $stmt = $conn->prepare("SELECT id FROM others WHERE receipt_number = ?");
     $stmt->bind_param("s", $receipt_number);
     $stmt->execute();
@@ -51,10 +49,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     $stmt->close();
 
-    // Loop through multiple fee types and insert each payment
+    // Check if admission fee has already been paid
+    $check_sql = "SELECT id FROM others WHERE admission_no = ? AND fee_type = 'Admission'";
+    $check_stmt = $conn->prepare($check_sql);
+    $check_stmt->bind_param("s", $admission_no);
+    $check_stmt->execute();
+    $check_stmt->store_result();
+
+    $admission_fee_paid = $check_stmt->num_rows > 0; // If rows exist, admission fee is already paid
+    $check_stmt->close();
+
     foreach ($_POST['fee_type'] as $index => $fee_type) {
-        $amount = $_POST['amount'][$index]; // Get corresponding amount
-        $is_recurring = isset($_POST['is_recurring'][$index]) ? 1 : 0; // Checkbox handling
+        $amount = $_POST['amount'][$index];
+        $is_recurring = isset($_POST['is_recurring'][$index]) ? 1 : 0;
+
+        // If the fee type is "Admission" and it was already paid, prevent duplicate entry
+        if ($fee_type == "Admission" && $admission_fee_paid) {
+            echo "Error: Admission fee has already been paid for this student!";
+            continue; // Skip inserting this fee
+        }
 
         // Insert into `others` table
         $sql = "INSERT INTO others (receipt_number, admission_no, name, fee_type, amount, payment_date, term, is_recurring) 
@@ -71,8 +84,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     echo "Fees recorded successfully!<br>Generated Receipt Number: <b>$receipt_number</b>";
     $conn->close();
 }
-?>
 
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
