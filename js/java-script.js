@@ -59,10 +59,15 @@ function updateFormAction() {
 
     if (feeType === "lunch_fees") {
         form.action = "lunch-fee.php";
-    } else {
+    } else if (feeType === "school_fees") {
         form.action = "school-fee-payment.php";
+    } else if (feeType === "admission" || feeType === "Activity" || feeType === "Exam" || feeType === "Interview") {
+        form.action = "student_Fees.php"; // Redirects correctly
+    } else {
+        form.action = "default-payment.php"; // Optional fallback
     }
 }
+
 
 // Set initial form action
 updateFormAction();
