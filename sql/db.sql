@@ -172,7 +172,7 @@ CREATE TABLE others (
     name VARCHAR(255) NOT NULL,
     fee_type ENUM('Admission', 'Activity', 'Exam', 'Interview') NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
-    payment_date DATE NOT NULL DEFAULT CURDATE(),
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     term ENUM('Term 1', 'Term 2', 'Term 3') DEFAULT NULL,
     is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
     INDEX (admission_no)
