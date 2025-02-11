@@ -17,9 +17,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = trim($_POST['admission_no'] ?? '');
     $amount = floatval($_POST['amount'] ?? 0);
     $payment_type = $_POST['payment_type'] ?? 'Cash';
+    $receipt_number = trim($_POST['receipt_number'] ?? ''); // Use frontend-generated receipt
 
-    if ($amount <= 0) {
-        echo json_encode(["error" => "Invalid payment amount."]);
+    if (empty($admission_no) || $amount <= 0 || empty($receipt_number)) {
+        echo json_encode(["error" => "Invalid input data!"]);
         exit();
     }
 
@@ -69,10 +70,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->execute();
     $stmt->close();
 
-    // Generate a unique receipt number
-    $receipt_number = "REC-" . strtoupper(bin2hex(random_bytes(4)));
-
-    // Insert transaction record
+    // Insert transaction record using frontend receipt number
     $stmt = $conn->prepare("INSERT INTO school_fee_transactions (name, admission_no, class, amount_paid, receipt_number, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("sssdss", $name, $admission_no, $class, $original_amount, $receipt_number, $payment_type);
     $stmt->execute();
