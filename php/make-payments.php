@@ -138,11 +138,16 @@ $(document).ready(function () {
 
         let admission_no = $("#admission_no").val().trim();
         let payment_type = $("#payment_type").val();
-        let receipt_number = generateReceiptNumber(); // Generate the receipt number in JS
+        let receipt_number = generateReceiptNumber();
 
-        let paymentRequests = [];
+        if (!admission_no) {
+            alert("⚠️ Please enter a valid Admission Number.");
+            return;
+        }
 
-        // Collect selected fee types and amounts
+        let requests = [];
+
+        // Process each selected fee
         $("input[type='checkbox']:checked").each(function () {
             let feeType = $(this).val();
             let amountField = $(this).closest(".fee-item").find(".fee-amount").val().trim();
@@ -157,70 +162,39 @@ $(document).ready(function () {
                     receipt_number: receipt_number
                 };
 
-                let url = "";
-                if (feeType === "school_fees") {
-                    url = "school-fee-payment.php";
-                } else if (feeType === "lunch_fees") {
-                    url = "lunch-fee.php";
-                } else {
-                    url = "others.php";
-                }
+                let url = (feeType === "school_fees") ? "school-fee-payment.php" :
+                          (feeType === "lunch_fees") ? "lunch-fee.php" :
+                          "others.php"; // Process all other fees here
 
-                // Send each payment request separately and log response
-                paymentRequests.push(
-                    $.post(url, paymentData)
-                        .then(response => {
-                            console.log(`Response from ${url}:`, response);
-                            try {
-                                return JSON.parse(response);
-                            } catch (error) {
-                                console.error(`Invalid JSON from ${url}:`, response);
-                                return { error: `Invalid response from ${url}.` };
-                            }
-                        })
-                );
+                requests.push($.post(url, paymentData));
             }
         });
 
-        // Validate inputs
-        if (!admission_no) {
-            alert("Please enter a valid Admission Number.");
+        if (requests.length === 0) {
+            alert("⚠️ Please select at least one fee and enter a valid amount.");
             return;
         }
 
-        if (paymentRequests.length === 0) {
-            alert("Please select at least one fee and enter a valid amount.");
-            return;
-        }
-
-        // Disable submit button to prevent duplicate submissions
         $("#submitBtn").prop("disabled", true).text("Processing...");
 
         try {
-            let results = await Promise.all(paymentRequests);
-            let errors = results.filter(res => res.error);
-            
-            if (errors.length > 0) {
-                alert("Some payments failed:\n" + errors.map(e => e.error).join("\n"));
-            } else {
-                alert("All payments processed successfully! Receipt Number: " + receipt_number);
-                window.location.reload();
-            }
+            await Promise.all(requests);
+            alert("✅ Payment successful! Receipt Number: " + receipt_number);
+            window.location.reload();
         } catch (err) {
-            alert("An unexpected error occurred. Please try again.");
+            console.error("Payment Error:", err);
+            alert("❌ An error occurred while processing payment.");
         } finally {
             $("#submitBtn").prop("disabled", false).text("Submit Payment");
         }
     });
 
-    // Function to generate a unique receipt number
     function generateReceiptNumber() {
         let datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
         let randomPart = Math.random().toString(36).substr(2, 5).toUpperCase();
         return "REC" + datePart + randomPart;
     }
 });
-
 
 </script>
 
