@@ -48,8 +48,8 @@ if (!isset($_SESSION['username'])) {
                 <a href="./make-payments.php" class="link-card">Make Payments</a>
                 <a href="./purchase-book.php" class="link-card">purchase diary | assessment</a>
                 <a href="./process-uniform.php" class="link-card">purchase uniform</a>
-                <a href="./student_Fees.php" class="link-card">Others</a>
-                <a href="#" class="link-card">Search Receipt</a>
+                <a href="#" class="link-card">Othe</a>
+                <a href="./clear-balance.php" class="link-card">Clear Balance</a>
                 <a href="#" class="link-card">Print Receipt</a>
                 <a href="#" class="link-card">School Exams</a>
                 <a href="#" class="link-card">Subordinate Staff</a>
