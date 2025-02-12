@@ -18,19 +18,16 @@
         <h2>Make Payments</h2>
     </div>
     
-    <!-- Message Container for displaying feedback -->
     <div class="message-container"></div>
 
     <form id="paymentForm" action="" method="POST">
-    <div id="messageBox"></div>
+        <div id="messageBox"></div>
 
-        <!-- Admission Number Input -->
         <div class="form-group">
             <label for="admission_no">Admission Number:</label>
             <input type="text" id="admission_no" name="admission_no" placeholder="Enter admission number" required>
         </div>
 
-        <!-- Fees Selection -->
         <div class="fees-list">
             <label>Select Fees:</label>
 
@@ -46,6 +43,7 @@
                 <input type="number" class="fee-amount" name="amount_lunch_fees" placeholder="Enter amount" disabled>
             </div>
 
+            <!-- Newly added fields -->
             <div class="fee-item">
                 <input type="checkbox" id="admission_fee" name="fees[]" value="admission">
                 <label for="admission_fee">Admission Fee</label>
@@ -75,7 +73,6 @@
             </div>
         </div>
 
-        <!-- Payment Method Selection -->
         <div class="form-group">
             <label for="payment_type">Payment Method:</label>
             <select id="payment_type" name="payment_type" required>
@@ -86,21 +83,20 @@
             </select>
         </div>
 
-        <!-- Action Buttons -->
         <div class="button-container">
             <button type="submit" id="submitBtn" class="add-student-btn">Proceed to Pay</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
     </form>
-</div> <!-- CLOSE .lunch-form PROPERLY -->
+</div>
 
-<!-- Footer -->
 <footer class="footer-dash">
     <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
 </footer>
 
 <script>
 $(document).ready(function () {
+    // Enable/disable amount input fields when checkboxes are toggled
     $("input[type='checkbox']").on("change", function () {
         let amountInput = $(this).closest(".fee-item").find(".fee-amount");
         amountInput.prop("disabled", !$(this).is(":checked"));
@@ -108,19 +104,21 @@ $(document).ready(function () {
         updateTotal();
     });
 
+    // Update total price when amount fields change
     $(".fee-amount").on("input", updateTotal);
 
     function updateTotal() {
         let totalPrice = 0;
         $(".fee-amount").each(function () {
             let value = parseFloat($(this).val());
-            if (!isNaN(value) && $(this).prop("disabled") === false) {
+            if (!isNaN(value) && !$(this).prop("disabled")) {
                 totalPrice += value;
             }
         });
         $("#total_price").text("Total Fee: KES " + totalPrice.toFixed(2));
     }
 
+    // Handle form submission
     $("#paymentForm").on("submit", async function (e) {
         e.preventDefault();
 
@@ -130,12 +128,12 @@ $(document).ready(function () {
         let messageBox = $("#messageBox");
         let submitBtn = $("#submitBtn");
 
+        // Validate Admission Number
         if (!admission_no) {
             messageBox.html(`<div class="error-message">⚠️ Please enter a valid Admission Number.</div>`);
             return;
         }
 
-        // Step 1: Validate Admission Number before proceeding
         try {
             let validationResponse = await $.post("validate-admission.php", { admission_no });
             let validationResult = JSON.parse(validationResponse);
@@ -150,8 +148,8 @@ $(document).ready(function () {
             return;
         }
 
-        // Step 2: Collect selected payments
-        let payments = [];
+        // Collect selected payments
+        let fees = {};
         let requests = [];
         let failedPayments = [];
 
@@ -160,27 +158,27 @@ $(document).ready(function () {
             let amount = parseFloat($(this).closest(".fee-item").find(".fee-amount").val().trim());
 
             if (!isNaN(amount) && amount > 0) {
-                let paymentData = { admission_no, payment_type, fee_type: feeType, amount, receipt_number };
-                payments.push(paymentData);
+                fees[feeType] = amount;
 
                 let url = (feeType === "school_fees") ? "school-fee-payment.php" :
                           (feeType === "lunch_fees") ? "lunch-fee.php" : "others.php";
 
                 requests.push(
-                    $.post(url, paymentData).fail(() => {
+                    $.post(url, { admission_no, payment_type, fee_type: feeType, amount, receipt_number }).fail(() => {
                         failedPayments.push(feeType);
                     })
                 );
             }
         });
 
-        if (payments.length === 0) {
+        if (Object.keys(fees).length === 0) {
             messageBox.html(`<div class="error-message">⚠️ Please select at least one fee and enter a valid amount.</div>`);
             return;
         }
 
         submitBtn.prop("disabled", true).text("Processing...");
 
+        // Process Payments
         setTimeout(async function () {
             try {
                 await Promise.all(requests);
@@ -189,8 +187,21 @@ $(document).ready(function () {
                     messageBox.html(`<div class="warning-message">⚠️ Some payments failed: ${failedPayments.join(", ")}. Please retry.</div>`);
                     submitBtn.prop("disabled", false).text("Retry Failed Payments");
                 } else {
-                    messageBox.html(`<div class="success-message">✅ Payment successful!</div>`);
+                    messageBox.html(`<div class="success-message">✅ Payment successful! Redirecting...</div>`);
                     submitBtn.text("Paid");
+
+                    // Redirect to receipt page
+                    let receiptData = {
+                        receipt_number: receipt_number,
+                        admission_no: admission_no,
+                        payment_type: payment_type,
+                        fees: JSON.stringify(fees),
+                        total: $("#total_price").text().replace("Total Fee: KES ", "")
+                    };
+                    let queryString = new URLSearchParams(receiptData).toString();
+                    setTimeout(() => {
+                        window.location.href = "receipt.php?" + queryString;
+                    }, 2000);
                 }
             } catch (err) {
                 console.error("Payment Error:", err);
@@ -200,15 +211,15 @@ $(document).ready(function () {
         }, 2000);
     });
 
+    // Function to generate a unique receipt number
     function generateReceiptNumber() {
-        let datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        let timestamp = Date.now().toString(36).toUpperCase(); // Ensures uniqueness
         let randomPart = Math.random().toString(36).substr(2, 5).toUpperCase();
-        return "REC" + datePart + randomPart;
+        return "REC" + timestamp + randomPart;
     }
 });
 
-
-
 </script>
+
 </body>
 </html>
