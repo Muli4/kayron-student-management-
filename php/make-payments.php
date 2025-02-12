@@ -139,7 +139,8 @@ $(document).ready(function () {
         let admission_no = $("#admission_no").val().trim();
         let payment_type = $("#payment_type").val();
         let receipt_number = generateReceiptNumber(); // Generate the receipt number in JS
-        let selectedFees = [];
+
+        let paymentRequests = [];
 
         // Collect selected fee types and amounts
         $("input[type='checkbox']:checked").each(function () {
@@ -148,7 +149,36 @@ $(document).ready(function () {
             let amount = parseFloat(amountField);
 
             if (!isNaN(amount) && amount > 0) {
-                selectedFees.push({ feeType: feeType, amount: amount, receipt_number: receipt_number });
+                let paymentData = {
+                    admission_no: admission_no,
+                    payment_type: payment_type,
+                    fee_type: feeType,
+                    amount: amount,
+                    receipt_number: receipt_number
+                };
+
+                let url = "";
+                if (feeType === "school_fees") {
+                    url = "school-fee-payment.php";
+                } else if (feeType === "lunch_fees") {
+                    url = "lunch-fee.php";
+                } else {
+                    url = "others.php";
+                }
+
+                // Send each payment request separately and log response
+                paymentRequests.push(
+                    $.post(url, paymentData)
+                        .then(response => {
+                            console.log(`Response from ${url}:`, response);
+                            try {
+                                return JSON.parse(response);
+                            } catch (error) {
+                                console.error(`Invalid JSON from ${url}:`, response);
+                                return { error: `Invalid response from ${url}.` };
+                            }
+                        })
+                );
             }
         });
 
@@ -158,34 +188,13 @@ $(document).ready(function () {
             return;
         }
 
-        if (selectedFees.length === 0) {
+        if (paymentRequests.length === 0) {
             alert("Please select at least one fee and enter a valid amount.");
             return;
         }
 
         // Disable submit button to prevent duplicate submissions
         $("#submitBtn").prop("disabled", true).text("Processing...");
-
-        // Send all fee payments using the same generated receipt number
-        let paymentRequests = selectedFees.map((fee) => {
-            let url = (fee.feeType === "school_fees") ? "school-fee-payment.php"
-                    : (fee.feeType === "lunch_fees") ? "lunch-fee.php"
-                    : "others.php";
-
-            return $.post(url, {
-                admission_no: admission_no,
-                payment_type: payment_type,
-                fee_type: fee.feeType,
-                amount: fee.amount,
-                receipt_number: fee.receipt_number // Automatically added here
-            }).then(response => {
-                try {
-                    return JSON.parse(response);
-                } catch {
-                    return { error: "Invalid response from server." };
-                }
-            });
-        });
 
         try {
             let results = await Promise.all(paymentRequests);
@@ -211,6 +220,8 @@ $(document).ready(function () {
         return "REC" + datePart + randomPart;
     }
 });
+
+
 </script>
 
 
