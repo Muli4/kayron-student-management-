@@ -13,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = $_POST['admission_no'];
     $selected_books = $_POST['books'] ?? []; // Ensure it's an array
     $quantities = $_POST['quantities'] ?? [];
-    $total_amount_paid = floatval($_POST['amount_paid']); // Total amount paid
+    $amounts_paid = $_POST['amounts_paid'] ?? [];
     $payment_type = $_POST['payment_type'];
 
     if (empty($selected_books)) {
@@ -37,14 +37,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $conn->begin_transaction();
 
         try {
-            $total_cost = 0;
             $book_data = [];
 
-            // First loop: Calculate total cost
+            // First loop: Fetch book details and calculate total cost
             foreach ($selected_books as $index => $book_id) {
                 $quantity = (int)$quantities[$index];
 
-                // Fetch book details
+                // Fetch book price
                 $book_query = "SELECT book_name, price FROM book_prices WHERE book_id = ?";
                 $stmt = $conn->prepare($book_query);
                 $stmt->bind_param("i", $book_id);
@@ -57,39 +56,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $price = $book['price'];
                     $total_price = $price * $quantity;
 
-                    // Store book data for later
+                    // Get user-entered amount paid for this book
+                    $amount_paid = isset($amounts_paid[$index]) ? floatval($amounts_paid[$index]) : 0;
+                    $balance = $total_price - $amount_paid;
+
+                    // Store book data for database insertion
                     $book_data[] = [
                         'book_id' => $book_id,
                         'book_name' => $book_name,
                         'price' => $price,
                         'quantity' => $quantity,
-                        'total_price' => $total_price
+                        'total_price' => $total_price,
+                        'amount_paid' => $amount_paid,
+                        'balance' => $balance
                     ];
-
-                    $total_cost += $total_price;
                 }
             }
 
             // Second loop: Insert into database
             foreach ($book_data as $book) {
                 $receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4))) . time(); // Unique receipt per book
-                
-                // Proportionally distribute the amount paid
-                $amount_paid = ($book['total_price'] / $total_cost) * $total_amount_paid;
 
-                // Insert each book purchase as a separate row with a unique receipt number
-                $insert_query = "INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, payment_type) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $insert_query = "INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 $stmt = $conn->prepare($insert_query);
                 $stmt->bind_param(
-                    "ssssidds",
+                    "ssssiddds",
                     $receipt_no,
                     $admission_no,
                     $name,
                     $book['book_name'],
                     $book['quantity'],
                     $book['total_price'],
-                    $amount_paid,
+                    $book['amount_paid'],
+                    $book['balance'],
                     $payment_type
                 );
                 $stmt->execute();
@@ -113,7 +113,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 ?>
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -123,6 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <link rel="stylesheet" href="../style/style.css">
 </head>
 <body>
+
 <div class="heading-all">
     <h2 class="title">Kayron Junior School</h2>
 </div>
@@ -160,20 +160,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="book-item">
                 <label class="book-label">
                     <input type="checkbox" name="books[]" value="<?= $book['book_id']; ?>" class="book-checkbox">
-                    <span class="book-info"><?= $book['book_name'] . " (  KES " . $book['price'] . ")"; ?></span>
+                    <span class="book-info"><?= $book['book_name'] . " (KES " . $book['price'] . ")"; ?></span>
                 </label>
                 <input type="number" class="quantity" name="quantities[]" data-price="<?= $book['price']; ?>" min="1" value="1" >
+                <input type="number" class="amount-paid" name="amounts_paid[]" placeholder="Enter Amount Paid (KES)" min="0">
             </div>
         <?php endwhile; ?>
         </div>
 
         <div class="">
             <p id="total_price">Total Price: KES 0.00</p>
-        </div>
-
-        <div class="form-group">
-            <label for="amounts_paid[]">Amount Paid (KES):</label>
-            <input type="number" name="amounts_paid[]" min="0" required>
         </div>
 
         <div class="form-group">
@@ -196,23 +192,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <footer class="footer-dash">
     <p>&copy; <?= date("Y") ?> Kayron Junior School. All Rights Reserved.</p>
 </footer>
-
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () {
     function updateTotalPrice() {
         let total = 0;
-        
+
         document.querySelectorAll('.book-checkbox:checked').forEach(function (checkbox) {
-            let quantityInput = checkbox.closest('.book-item').querySelector('.quantity');
+            let bookItem = checkbox.closest('.book-item');
+            let quantityInput = bookItem.querySelector('.quantity');
             let price = parseFloat(quantityInput.getAttribute('data-price')) || 0;
             let quantity = parseInt(quantityInput.value) || 1;
-            total += price * quantity;
+
+            total += price * quantity; // Ensure price is multiplied by quantity
         });
 
         document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
     }
 
-    // Attach event listeners
+    // Attach event listeners to checkboxes and quantity inputs
     document.querySelectorAll('.book-checkbox').forEach(function (checkbox) {
         checkbox.addEventListener('change', updateTotalPrice);
     });
@@ -221,9 +218,10 @@ document.addEventListener("DOMContentLoaded", function () {
         input.addEventListener('input', updateTotalPrice);
     });
 
-    // Trigger the calculation once on page load
+    // Run the function once on page load
     updateTotalPrice();
 });
+
 </script>
 <script src="../js/java-script.js"></script>
 </body>
