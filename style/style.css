@@ -667,7 +667,10 @@ html, body {
     font-weight: bold;
     color: #007bff;
 }
-
+.message-container {
+    margin-bottom: 10px;
+    display: none;
+}
 /* Mobile Responsive Styles */
 @media screen and (max-width: 768px) {
     input[type="file"]{
