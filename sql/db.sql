@@ -108,17 +108,19 @@ CREATE TABLE book_prices (
     price DECIMAL(10,2) NOT NULL
 );
 
-CREATE TABLE book_purchases (
+CREATE TABLE  book_purchases (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_number VARCHAR(50) NOT NULL UNIQUE,
-    admission_no VARCHAR(50) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    book_name VARCHAR(100) NOT NULL,
-    total_price DECIMAL(10, 2) NOT NULL,
-    amount_paid DECIMAL(10, 2) NOT NULL,
-    balance DECIMAL(10, 2) NOT NULL,
+    admission_no VARCHAR(20) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    book_name VARCHAR(255) NOT NULL,
+    quantity INT NOT NULL,
+    total_price DECIMAL(10,2) NOT NULL,
+    amount_paid DECIMAL(10,2) NOT NULL,
+    balance DECIMAL(10,2) NOT NULL DEFAULT 0,   
     payment_type ENUM('Cash', 'M-Pesa', 'Bank Transfer') NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admission_no) REFERENCES student_records(admission_no) ON DELETE CASCADE
 );
 
 INSERT INTO book_prices (book_name, category, price) VALUES
@@ -164,7 +166,7 @@ INSERT INTO uniform_prices (uniform_type, size, price) VALUES
 ('Track Suit Size', '20-26', 1800.00),
 ('Track Suit Size', '28-32', 2000.00);
 
--- other payments
+-- other payments(admission , activity, exam , interview)
 CREATE TABLE others (
     id INT AUTO_INCREMENT PRIMARY KEY,
     receipt_number VARCHAR(50) NOT NULL,
