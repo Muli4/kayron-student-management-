@@ -167,7 +167,7 @@ INSERT INTO uniform_prices (uniform_type, size, price) VALUES
 -- other payments
 CREATE TABLE others (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    receipt_number VARCHAR(50) NOT NULL UNIQUE,
+    receipt_number VARCHAR(50) NOT NULL,
     admission_no VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
     term ENUM('term1', 'term2', 'term3') DEFAULT NULL,
