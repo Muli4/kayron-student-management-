@@ -101,15 +101,13 @@
 
 <script>
 $(document).ready(function () {
-    // Enable/disable amount input based on checkbox selection
     $("input[type='checkbox']").on("change", function () {
         let amountInput = $(this).closest(".fee-item").find(".fee-amount");
         amountInput.prop("disabled", !$(this).is(":checked"));
-        if (!$(this).is(":checked")) amountInput.val(""); // Clear if unchecked
+        if (!$(this).is(":checked")) amountInput.val("");
         updateTotal();
     });
 
-    // Update total fee whenever an amount is entered
     $(".fee-amount").on("input", updateTotal);
 
     function updateTotal() {
@@ -130,46 +128,76 @@ $(document).ready(function () {
         let payment_type = $("#payment_type").val();
         let receipt_number = generateReceiptNumber();
         let messageBox = $("#messageBox");
+        let submitBtn = $("#submitBtn");
 
         if (!admission_no) {
             messageBox.html(`<div class="error-message">⚠️ Please enter a valid Admission Number.</div>`);
             return;
         }
 
+        // Step 1: Validate Admission Number before proceeding
+        try {
+            let validationResponse = await $.post("validate-admission.php", { admission_no });
+            let validationResult = JSON.parse(validationResponse);
+
+            if (validationResult.status !== "success") {
+                messageBox.html(`<div class="error-message">${validationResult.message}</div>`);
+                return;
+            }
+        } catch (err) {
+            console.error("Validation Error:", err);
+            messageBox.html(`<div class="error-message">❌ Error verifying admission number.</div>`);
+            return;
+        }
+
+        // Step 2: Collect selected payments
+        let payments = [];
         let requests = [];
+        let failedPayments = [];
+
         $("input[type='checkbox']:checked").each(function () {
             let feeType = $(this).val();
             let amount = parseFloat($(this).closest(".fee-item").find(".fee-amount").val().trim());
 
             if (!isNaN(amount) && amount > 0) {
                 let paymentData = { admission_no, payment_type, fee_type: feeType, amount, receipt_number };
-                let url = feeType === "school_fees" ? "school-fee-payment.php" :
-                          feeType === "lunch_fees" ? "lunch-fee.php" : "others.php";
+                payments.push(paymentData);
 
-                requests.push($.post(url, paymentData));
+                let url = (feeType === "school_fees") ? "school-fee-payment.php" :
+                          (feeType === "lunch_fees") ? "lunch-fee.php" : "others.php";
+
+                requests.push(
+                    $.post(url, paymentData).fail(() => {
+                        failedPayments.push(feeType);
+                    })
+                );
             }
         });
 
-        if (requests.length === 0) {
+        if (payments.length === 0) {
             messageBox.html(`<div class="error-message">⚠️ Please select at least one fee and enter a valid amount.</div>`);
             return;
         }
 
-        let submitBtn = $("#submitBtn");
-        submitBtn.prop("disabled", true).text("Processing");
+        submitBtn.prop("disabled", true).text("Processing...");
 
-        // Introduce a 30-second delay before processing
         setTimeout(async function () {
             try {
                 await Promise.all(requests);
-                messageBox.html(`<div class="success-message">✅ Payment successful!</div>`);
-                submitBtn.text("Paid");
+
+                if (failedPayments.length > 0) {
+                    messageBox.html(`<div class="warning-message">⚠️ Some payments failed: ${failedPayments.join(", ")}. Please retry.</div>`);
+                    submitBtn.prop("disabled", false).text("Retry Failed Payments");
+                } else {
+                    messageBox.html(`<div class="success-message">✅ Payment successful!</div>`);
+                    submitBtn.text("Paid");
+                }
             } catch (err) {
                 console.error("Payment Error:", err);
                 messageBox.html(`<div class="error-message">❌ An error occurred while processing payment.</div>`);
                 submitBtn.prop("disabled", false).text("Proceed to Pay");
             }
-        }, 2000); // 30 seconds delay
+        }, 2000);
     });
 
     function generateReceiptNumber() {
@@ -178,6 +206,8 @@ $(document).ready(function () {
         return "REC" + datePart + randomPart;
     }
 });
+
+
 
 </script>
 </body>
