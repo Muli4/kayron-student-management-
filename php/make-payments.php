@@ -17,15 +17,12 @@
     <div class="add-heading">
         <h2>Make Payments</h2>
     </div>
-    <form id="paymentForm" action="" method="POST">
     
-        <?php
-        session_start();
-        if (isset($_SESSION['message'])){
-            echo "<div class='message'>" . $_SESSION['message'] . "</div>";
-            unset($_SESSION['message']);
-        }
-        ?>
+    <!-- Message Container for displaying feedback -->
+    <div class="message-container"></div>
+
+    <form id="paymentForm" action="" method="POST">
+    <div id="messageBox"></div>
 
         <!-- Admission Number Input -->
         <div class="form-group">
@@ -91,13 +88,13 @@
 
         <!-- Action Buttons -->
         <div class="button-container">
-            <button type="submit" class="add-student-btn">Purchase</button>
+            <button type="submit" id="submitBtn" class="add-student-btn">Proceed to Pay</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
     </form>
 </div> <!-- CLOSE .lunch-form PROPERLY -->
 
-<!-- Footer should be outside the form -->
+<!-- Footer -->
 <footer class="footer-dash">
     <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
 </footer>
@@ -107,86 +104,72 @@ $(document).ready(function () {
     // Enable/disable amount input based on checkbox selection
     $("input[type='checkbox']").on("change", function () {
         let amountInput = $(this).closest(".fee-item").find(".fee-amount");
-        if ($(this).is(":checked")) {
-            amountInput.prop("disabled", false);
-        } else {
-            amountInput.prop("disabled", true).val(""); // Clear value if unchecked
-        }
+        amountInput.prop("disabled", !$(this).is(":checked"));
+        if (!$(this).is(":checked")) amountInput.val(""); // Clear if unchecked
         updateTotal();
     });
 
     // Update total fee whenever an amount is entered
-    $(".fee-amount").on("input", function () {
-        updateTotal();
-    });
+    $(".fee-amount").on("input", updateTotal);
 
     function updateTotal() {
         let totalPrice = 0;
         $(".fee-amount").each(function () {
-            if (!$(this).prop("disabled") && $(this).val() !== "") {
-                let value = parseFloat($(this).val());
-                if (!isNaN(value)) {
-                    totalPrice += value;
-                }
+            let value = parseFloat($(this).val());
+            if (!isNaN(value) && $(this).prop("disabled") === false) {
+                totalPrice += value;
             }
         });
         $("#total_price").text("Total Fee: KES " + totalPrice.toFixed(2));
     }
 
     $("#paymentForm").on("submit", async function (e) {
-        e.preventDefault(); // Prevent normal form submission
+        e.preventDefault();
 
         let admission_no = $("#admission_no").val().trim();
         let payment_type = $("#payment_type").val();
         let receipt_number = generateReceiptNumber();
+        let messageBox = $("#messageBox");
 
         if (!admission_no) {
-            alert("⚠️ Please enter a valid Admission Number.");
+            messageBox.html(`<div class="error-message">⚠️ Please enter a valid Admission Number.</div>`);
             return;
         }
 
         let requests = [];
-
-        // Process each selected fee
         $("input[type='checkbox']:checked").each(function () {
             let feeType = $(this).val();
-            let amountField = $(this).closest(".fee-item").find(".fee-amount").val().trim();
-            let amount = parseFloat(amountField);
+            let amount = parseFloat($(this).closest(".fee-item").find(".fee-amount").val().trim());
 
             if (!isNaN(amount) && amount > 0) {
-                let paymentData = {
-                    admission_no: admission_no,
-                    payment_type: payment_type,
-                    fee_type: feeType,
-                    amount: amount,
-                    receipt_number: receipt_number
-                };
-
-                let url = (feeType === "school_fees") ? "school-fee-payment.php" :
-                          (feeType === "lunch_fees") ? "lunch-fee.php" :
-                          "others.php"; // Process all other fees here
+                let paymentData = { admission_no, payment_type, fee_type: feeType, amount, receipt_number };
+                let url = feeType === "school_fees" ? "school-fee-payment.php" :
+                          feeType === "lunch_fees" ? "lunch-fee.php" : "others.php";
 
                 requests.push($.post(url, paymentData));
             }
         });
 
         if (requests.length === 0) {
-            alert("⚠️ Please select at least one fee and enter a valid amount.");
+            messageBox.html(`<div class="error-message">⚠️ Please select at least one fee and enter a valid amount.</div>`);
             return;
         }
 
-        $("#submitBtn").prop("disabled", true).text("Processing...");
+        let submitBtn = $("#submitBtn");
+        submitBtn.prop("disabled", true).text("Processing");
 
-        try {
-            await Promise.all(requests);
-            alert("✅ Payment successful! Receipt Number: " + receipt_number);
-            window.location.reload();
-        } catch (err) {
-            console.error("Payment Error:", err);
-            alert("❌ An error occurred while processing payment.");
-        } finally {
-            $("#submitBtn").prop("disabled", false).text("Submit Payment");
-        }
+        // Introduce a 30-second delay before processing
+        setTimeout(async function () {
+            try {
+                await Promise.all(requests);
+                messageBox.html(`<div class="success-message">✅ Payment successful!</div>`);
+                submitBtn.text("Paid");
+            } catch (err) {
+                console.error("Payment Error:", err);
+                messageBox.html(`<div class="error-message">❌ An error occurred while processing payment.</div>`);
+                submitBtn.prop("disabled", false).text("Proceed to Pay");
+            }
+        }, 2000); // 30 seconds delay
     });
 
     function generateReceiptNumber() {
@@ -197,7 +180,5 @@ $(document).ready(function () {
 });
 
 </script>
-
-
 </body>
 </html>
