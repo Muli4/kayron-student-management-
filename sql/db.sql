@@ -178,3 +178,16 @@ CREATE TABLE others (
     is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
     INDEX (admission_no)
 );
+
+---payments
+CREATE TABLE payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    admission_no VARCHAR(20) NOT NULL,
+    payment_type ENUM('mpesa', 'bank_transfer', 'cash') NOT NULL,
+    fee_type ENUM('school_fees', 'lunch_fees', 'admission', 'activity', 'exam', 'interview') NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    receipt_number VARCHAR(50) NOT NULL,
+    payment_status ENUM VARCHAR(20) DEFAULT 'PAID',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admission_no) REFERENCES student_records(admission_no) ON DELETE CASCADE
+);
