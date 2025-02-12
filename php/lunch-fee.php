@@ -119,7 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt->execute();
     $stmt->close();
 
-    $_SESSION['message'] = "<div class='success-message'>Lunch fee payment recorded successfully!</div>";
+    $_SESSION['message'] = "";
     echo json_encode(["success" => true]);
     exit();
 }
