@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
 
         if ($count > 0) {
-            die("Admission fee already paid.");
+            die("Admission fee has already been paid for this student.");
         }
     }
 
