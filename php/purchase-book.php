@@ -182,7 +182,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
 
         <div class="button-container">
-            <button type="submit" class="add-student-btn">Purchase</button>
+            <button type="submit" class="add-student-btn" id="purchase-btn" >Purchase</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
 
@@ -194,36 +194,65 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </footer>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-    function updateTotalPrice() {
-        let total = 0;
+        function updateTotalPrice() {
+            let total = 0;
 
-        document.querySelectorAll('.book-checkbox:checked').forEach(function (checkbox) {
-            let bookItem = checkbox.closest('.book-item');
-            let quantityInput = bookItem.querySelector('.quantity');
-            let price = parseFloat(quantityInput.getAttribute('data-price')) || 0;
-            let quantity = parseInt(quantityInput.value) || 1;
+            document.querySelectorAll('.book-checkbox:checked').forEach(function (checkbox) {
+                let bookItem = checkbox.closest('.book-item');
+                let quantityInput = bookItem.querySelector('.quantity');
+                let price = parseFloat(quantityInput.getAttribute('data-price')) || 0;
+                let quantity = parseInt(quantityInput.value) || 1;
 
-            total += price * quantity; // Ensure price is multiplied by quantity
+                total += price * quantity; // Ensure price is multiplied by quantity
+            });
+
+            document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
+        }
+
+        // Attach event listeners to checkboxes and quantity inputs
+        document.querySelectorAll('.book-checkbox').forEach(function (checkbox) {
+            checkbox.addEventListener('change', updateTotalPrice);
         });
 
-        document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
-    }
+        document.querySelectorAll('.quantity').forEach(function (input) {
+            input.addEventListener('input', updateTotalPrice);
+        });
 
-    // Attach event listeners to checkboxes and quantity inputs
-    document.querySelectorAll('.book-checkbox').forEach(function (checkbox) {
-        checkbox.addEventListener('change', updateTotalPrice);
+        // Run the function once on page load
+        updateTotalPrice();
+
+        // Payment button behavior with delay & redirection
+        const purchaseBtn = document.getElementById("purchase-btn");
+        const form = document.querySelector("form");
+
+        if (purchaseBtn && form) {
+            form.addEventListener("submit", function (event) {
+                // Prevent immediate form submission
+                event.preventDefault();
+
+                // Get form data
+                let receiptNumber = Date.now(); // Generate unique receipt number
+                let admissionNo = document.getElementById("admission_no").value || "Unknown";
+                let paymentType = document.querySelector('input[name="payment_type"]:checked')?.value || "Cash";
+                let totalPrice = parseFloat(document.getElementById("total_price").textContent.replace("Total Price: KES ", "")) || 0;
+
+                // Change button to "Processing..."
+                purchaseBtn.textContent = "Processing...";
+                purchaseBtn.disabled = true;
+
+                // Simulate delay of 10 seconds before redirecting
+                setTimeout(() => {
+                    purchaseBtn.textContent = "Paid";
+
+                    // Redirect to receipt page
+                    let url = `receipt.php?receipt_number=${receiptNumber}&admission_no=${encodeURIComponent(admissionNo)}&payment_type=${encodeURIComponent(paymentType)}&total=${totalPrice.toFixed(2)}`;
+                    window.location.href = url;
+                }, 10000);
+            });
+        }
     });
-
-    document.querySelectorAll('.quantity').forEach(function (input) {
-        input.addEventListener('input', updateTotalPrice);
-    });
-
-    // Run the function once on page load
-    updateTotalPrice();
-});
-
 </script>
-<script src="../js/java-script.js"></script>
+
 </body>
 </html>
 
