@@ -130,6 +130,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <h2>Purchase Books</h2>
     </div>
     <form action="" method="POST" id="purchase-form">
+        <div id="error-message" style="color: red; font-weight: bold;"></div>
+        <div id="success-message" style="color: green; font-weight: bold;"></div>
 
         <?php
         if (isset($_SESSION['success'])) {
@@ -182,10 +184,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
 
         <div class="button-container">
-            <button type="submit" class="add-student-btn" id="purchase-btn">Purchase</button>
+            <button type="submit" class="add-student-btn" id="purchase-btn">Purchase book(s)</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
 
+        
     </form>
 </div>
 
@@ -205,11 +208,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         document.querySelectorAll(".book-item").forEach(item => {
             let checkbox = item.querySelector(".book-checkbox");
             let quantityInput = item.querySelector(".quantity");
+            let amountInput = item.querySelector(".amount-paid");
             let price = parseFloat(quantityInput.dataset.price) || 0;
             let quantity = parseInt(quantityInput.value) || 1;
 
             if (checkbox.checked) {
                 total += price * quantity;
+                amountInput.disabled = false; // Enable amount input
+            } else {
+                amountInput.disabled = true;  // Disable amount input
+                amountInput.value = ""; // Clear the input when disabled
             }
         });
 
@@ -217,32 +225,138 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         return total.toFixed(2);
     }
 
+    async function validateAdmissionNumber() {
+    let admissionNo = document.getElementById("admission_no")?.value.trim();
+    let errorDiv = document.getElementById("error-message");
+
+    if (!admissionNo) {
+        errorDiv.textContent = "⚠️ Admission number is required.";
+        return false;
+    }
+
+    try {
+        let response = await fetch("validate-admission.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `admission_no=${encodeURIComponent(admissionNo)}`
+        });
+
+        let result = await response.json(); // **Parse JSON response properly**
+
+        if (result.status === "success") {
+            errorDiv.textContent = ""; // Clear errors
+            return true;
+        } else {
+            errorDiv.textContent = result.message;
+            return false;
+        }
+    } catch (error) {
+        console.error("Error validating admission number:", error);
+        errorDiv.textContent = "❌ Unexpected error. Please try again.";
+        return false;
+    }
+}
+
+    async function validateForm() {
+        let admissionNo = document.getElementById("admission_no")?.value.trim() || "";
+        let booksSelected = false;
+        let validAmounts = true;
+        let errorDiv = document.getElementById("error-message");
+
+        if (!errorDiv) {
+            console.error("Error message div is missing in HTML.");
+            return false;
+        }
+
+        document.querySelectorAll(".book-item").forEach(item => {
+            let checkbox = item.querySelector(".book-checkbox");
+            let amountInput = item.querySelector(".amount-paid");
+
+            if (checkbox.checked) {
+                booksSelected = true;
+                let amount = parseFloat(amountInput.value) || 0;
+                if (amount <= 0 || isNaN(amount)) {
+                    validAmounts = false;
+                }
+            }
+        });
+
+        if (admissionNo === "") {
+            errorDiv.textContent = "❌ Admission number is required.";
+            return false;
+        } 
+
+        let isValidAdmission = await validateAdmissionNumber(admissionNo);
+        if (!isValidAdmission) {
+            errorDiv.textContent = "❌ Invalid Admission Number! Please check and try again.";
+            return false;
+        }
+
+        if (!booksSelected) {
+            errorDiv.textContent = "❌ Please select at least one book.";
+            return false;
+        } 
+
+        if (!validAmounts) {
+            errorDiv.textContent = "❌ Amount paid must be valid and greater than zero.";
+            return false;
+        } 
+
+        errorDiv.textContent = "";
+        return true;
+    }
 
     document.addEventListener("DOMContentLoaded", function () {
-        document.getElementById("receipt_number").value = generateReceiptNumber();
+        let receiptInput = document.getElementById("receipt_number");
+        if (receiptInput) {
+            receiptInput.value = generateReceiptNumber();
+        }
 
-        // Event listeners for dynamic total price calculation
-        document.querySelectorAll(".book-checkbox, .quantity").forEach(element => {
+        document.querySelectorAll(".book-checkbox, .quantity, .amount-paid").forEach(element => {
             element.addEventListener("input", calculateTotal);
         });
 
-        // Handle button status and allow form submission
-        document.getElementById("purchase-form").addEventListener("submit", function (e) {
-            let purchaseBtn = document.getElementById("purchase-btn");
+        let purchaseBtn = document.getElementById("purchase-btn");
+        let successMessage = document.getElementById("success-message");
+        let form = document.getElementById("purchase-form");
+
+        if (!purchaseBtn || !form) {
+            console.error("Purchase button or form is missing in HTML.");
+            return;
+        }
+
+        purchaseBtn.addEventListener("click", async function (e) {
+            e.preventDefault(); 
+
+            if (!await validateForm()) {
+                purchaseBtn.textContent = "Purchase"; 
+                purchaseBtn.disabled = false;
+                purchaseBtn.style.backgroundColor = "red";
+                return;
+            }
+
             purchaseBtn.textContent = "Processing...";
             purchaseBtn.disabled = true;
+            purchaseBtn.style.backgroundColor = "orange";
+            successMessage.textContent = "";
 
-            // Wait for a few seconds to show processing effect
             setTimeout(() => {
                 purchaseBtn.textContent = "Paid";
                 purchaseBtn.style.backgroundColor = "green";
+                successMessage.textContent = "✅ Paid successfully, redirecting to print...";
 
-                // **Do NOT prevent form submission**
-                this.submit(); // Allows form to submit normally after processing
-            }, 3000);
+                setTimeout(() => {
+                    form.submit();
+                }, 2000);
+            }, 5000);
         });
+
+        document.querySelectorAll(".amount-paid").forEach(input => input.disabled = true);
     });
 </script>
+
+
+
 
 
 </body>
