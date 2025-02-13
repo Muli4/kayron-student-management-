@@ -5,13 +5,16 @@ session_start(); // Start session to store messages
 $conn = new mysqli("localhost", "root", "", "school_database");
 
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    $_SESSION['error'] = "<div class='error-message'>Database connection failed.</div>";
+    header("Location: purchase-book.php");
+    exit();
 }
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $admission_no = $_POST['admission_no'];
-    $selected_books = $_POST['books'] ?? []; // Ensure it's an array
+    $admission_no = trim($_POST['admission_no']);
+    $receipt_no = trim($_POST['receipt_number']); // Get receipt number from form
+    $selected_books = $_POST['books'] ?? [];
     $quantities = $_POST['quantities'] ?? [];
     $amounts_paid = $_POST['amounts_paid'] ?? [];
     $payment_type = $_POST['payment_type'];
@@ -22,89 +25,73 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    // Fetch student details
-    $student_query = "SELECT name FROM student_records WHERE admission_no = ?";
-    $stmt = $conn->prepare($student_query);
+    // Validate student existence
+    $stmt = $conn->prepare("SELECT name FROM student_records WHERE admission_no = ?");
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
     $student_result = $stmt->get_result();
 
-    if ($student_result->num_rows > 0) {
-        $student = $student_result->fetch_assoc();
-        $name = $student['name'];
+    if ($student_result->num_rows === 0) {
+        $_SESSION['error'] = "<div class='error-message'>Invalid admission number!</div>";
+        header("Location: purchase-book.php");
+        exit();
+    }
 
-        // Begin transaction
-        $conn->begin_transaction();
+    $student = $student_result->fetch_assoc();
+    $student_name = $student['name'];
 
-        try {
-            $book_data = [];
+    // Begin database transaction
+    $conn->begin_transaction();
 
-            // First loop: Fetch book details and calculate total cost
-            foreach ($selected_books as $index => $book_id) {
-                $quantity = (int)$quantities[$index];
+    try {
+        // Prepare book fetching statement
+        $book_stmt = $conn->prepare("SELECT book_name, price FROM book_prices WHERE book_id = ?");
+        $insert_stmt = $conn->prepare("INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type) 
+                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-                // Fetch book price
-                $book_query = "SELECT book_name, price FROM book_prices WHERE book_id = ?";
-                $stmt = $conn->prepare($book_query);
-                $stmt->bind_param("i", $book_id);
-                $stmt->execute();
-                $book_result = $stmt->get_result();
+        foreach ($selected_books as $index => $book_id) {
+            $quantity = (int)$quantities[$index];
 
-                if ($book_result->num_rows > 0) {
-                    $book = $book_result->fetch_assoc();
-                    $book_name = $book['book_name'];
-                    $price = $book['price'];
-                    $total_price = $price * $quantity;
+            // Fetch book details
+            $book_stmt->bind_param("i", $book_id);
+            $book_stmt->execute();
+            $book_result = $book_stmt->get_result();
 
-                    // Get user-entered amount paid for this book
-                    $amount_paid = isset($amounts_paid[$index]) ? floatval($amounts_paid[$index]) : 0;
-                    $balance = $total_price - $amount_paid;
+            if ($book_result->num_rows > 0) {
+                $book = $book_result->fetch_assoc();
+                $book_name = $book['book_name'];
+                $price = $book['price'];
+                $total_price = $price * $quantity;
 
-                    // Store book data for database insertion
-                    $book_data[] = [
-                        'book_id' => $book_id,
-                        'book_name' => $book_name,
-                        'price' => $price,
-                        'quantity' => $quantity,
-                        'total_price' => $total_price,
-                        'amount_paid' => $amount_paid,
-                        'balance' => $balance
-                    ];
-                }
-            }
+                // Get amount paid for this book
+                $amount_paid = isset($amounts_paid[$index]) ? floatval($amounts_paid[$index]) : 0;
+                $balance = $total_price - $amount_paid;
 
-            // Second loop: Insert into database
-            foreach ($book_data as $book) {
-                $receipt_no = "RCPT-" . strtoupper(bin2hex(random_bytes(4))) . time(); // Unique receipt per book
-
-                $insert_query = "INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                $stmt = $conn->prepare($insert_query);
-                $stmt->bind_param(
+                // Insert purchase record
+                $insert_stmt->bind_param(
                     "ssssiddds",
                     $receipt_no,
                     $admission_no,
-                    $name,
-                    $book['book_name'],
-                    $book['quantity'],
-                    $book['total_price'],
-                    $book['amount_paid'],
-                    $book['balance'],
+                    $student_name,
+                    $book_name,
+                    $quantity,
+                    $total_price,
+                    $amount_paid,
+                    $balance,
                     $payment_type
                 );
-                $stmt->execute();
+                $insert_stmt->execute();
             }
-
-            // Commit transaction
-            $conn->commit();
-            $_SESSION['success'] = "<div class='success-message'>Purchase recorded successfully!</div>";
-        } catch (Exception $e) {
-            // Rollback on error
-            $conn->rollback();
-            $_SESSION['error'] = "<div class='error-message'>" . $e->getMessage() . "</div>";
         }
-    } else {
-        $_SESSION['error'] = "<div class='error-message'>Student not found!</div>";
+
+        // Commit transaction
+        $conn->commit();
+        $_SESSION['success'] = "<div class='success-message'>Purchase recorded successfully!</div>";
+
+    } catch (Exception $e) {
+        // Rollback in case of error
+        $conn->rollback();
+        $_SESSION['error'] = "<div class='error-message'>Transaction failed: " . $e->getMessage() . "</div>";
     }
 
     // Redirect back to form
@@ -131,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <div class="add-heading">
         <h2>Purchase Books</h2>
     </div>
-    <form action="" method="POST">
+    <form action="" method="POST" id="purchase-form">
 
         <?php
         if (isset($_SESSION['success'])) {
@@ -143,6 +130,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             unset($_SESSION['error']);
         }
         ?>
+
+        <input type="hidden" id="receipt_number" name="receipt_number">
 
         <div class="form-group">
             <label for="admission_no">Admission Number:</label>
@@ -182,7 +171,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
 
         <div class="button-container">
-            <button type="submit" class="add-student-btn" id="purchase-btn" >Purchase</button>
+            <button type="submit" class="add-student-btn" id="purchase-btn">Purchase</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
 
@@ -192,64 +181,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <footer class="footer-dash">
     <p>&copy; <?= date("Y") ?> Kayron Junior School. All Rights Reserved.</p>
 </footer>
+
 <script>
+    function generateReceiptNumber() {
+        let timestamp = Date.now().toString(36).toUpperCase();
+        let randomPart = Math.random().toString(36).substr(2, 5).toUpperCase();
+        return "REC" + timestamp + randomPart;
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
-        function updateTotalPrice() {
-            let total = 0;
-
-            document.querySelectorAll('.book-checkbox:checked').forEach(function (checkbox) {
-                let bookItem = checkbox.closest('.book-item');
-                let quantityInput = bookItem.querySelector('.quantity');
-                let price = parseFloat(quantityInput.getAttribute('data-price')) || 0;
-                let quantity = parseInt(quantityInput.value) || 1;
-
-                total += price * quantity; // Ensure price is multiplied by quantity
-            });
-
-            document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
-        }
-
-        // Attach event listeners to checkboxes and quantity inputs
-        document.querySelectorAll('.book-checkbox').forEach(function (checkbox) {
-            checkbox.addEventListener('change', updateTotalPrice);
-        });
-
-        document.querySelectorAll('.quantity').forEach(function (input) {
-            input.addEventListener('input', updateTotalPrice);
-        });
-
-        // Run the function once on page load
-        updateTotalPrice();
-
-        // Payment button behavior with delay & redirection
-        const purchaseBtn = document.getElementById("purchase-btn");
-        const form = document.querySelector("form");
-
-        if (purchaseBtn && form) {
-            form.addEventListener("submit", function (event) {
-                // Prevent immediate form submission
-                event.preventDefault();
-
-                // Get form data
-                let receiptNumber = Date.now(); // Generate unique receipt number
-                let admissionNo = document.getElementById("admission_no").value || "Unknown";
-                let paymentType = document.querySelector('input[name="payment_type"]:checked')?.value || "Cash";
-                let totalPrice = parseFloat(document.getElementById("total_price").textContent.replace("Total Price: KES ", "")) || 0;
-
-                // Change button to "Processing..."
-                purchaseBtn.textContent = "Processing...";
-                purchaseBtn.disabled = true;
-
-                // Simulate delay of 10 seconds before redirecting
-                setTimeout(() => {
-                    purchaseBtn.textContent = "Paid";
-
-                    // Redirect to receipt page
-                    let url = `receipt.php?receipt_number=${receiptNumber}&admission_no=${encodeURIComponent(admissionNo)}&payment_type=${encodeURIComponent(paymentType)}&total=${totalPrice.toFixed(2)}`;
-                    window.location.href = url;
-                }, 10000);
-            });
-        }
+        document.getElementById("receipt_number").value = generateReceiptNumber();
     });
 </script>
 
