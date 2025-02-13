@@ -189,10 +189,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         return "REC" + timestamp + randomPart;
     }
 
+    function calculateTotal() {
+        let total = 0;
+        document.querySelectorAll(".book-item").forEach(item => {
+            let checkbox = item.querySelector(".book-checkbox");
+            let quantityInput = item.querySelector(".quantity");
+            let price = parseFloat(quantityInput.dataset.price) || 0;
+            let quantity = parseInt(quantityInput.value) || 1;
+
+            if (checkbox.checked) {
+                total += price * quantity;
+            }
+        });
+
+        document.getElementById("total_price").textContent = `Total Price: KES ${total.toFixed(2)}`;
+        return total.toFixed(2);
+    }
+
+
     document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("receipt_number").value = generateReceiptNumber();
+
+        // Event listeners for dynamic total price calculation
+        document.querySelectorAll(".book-checkbox, .quantity").forEach(element => {
+            element.addEventListener("input", calculateTotal);
+        });
+
+        // Handle button status and allow form submission
+        document.getElementById("purchase-form").addEventListener("submit", function (e) {
+            let purchaseBtn = document.getElementById("purchase-btn");
+            purchaseBtn.textContent = "Processing...";
+            purchaseBtn.disabled = true;
+
+            // Wait for a few seconds to show processing effect
+            setTimeout(() => {
+                purchaseBtn.textContent = "Paid";
+                purchaseBtn.style.backgroundColor = "green";
+
+                // **Do NOT prevent form submission**
+                this.submit(); // Allows form to submit normally after processing
+            }, 3000);
+        });
     });
 </script>
+
 
 </body>
 </html>
