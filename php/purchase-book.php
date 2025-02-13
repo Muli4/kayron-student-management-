@@ -42,9 +42,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Begin database transaction
     $conn->begin_transaction();
+    $total_price = 0;
 
     try {
-        // Prepare book fetching statement
+        // Prepare book fetching and insertion statements
         $book_stmt = $conn->prepare("SELECT book_name, price FROM book_prices WHERE book_id = ?");
         $insert_stmt = $conn->prepare("INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type) 
                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -61,11 +62,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $book = $book_result->fetch_assoc();
                 $book_name = $book['book_name'];
                 $price = $book['price'];
-                $total_price = $price * $quantity;
+                $item_total = $price * $quantity;
+                $total_price += $item_total;
 
                 // Get amount paid for this book
                 $amount_paid = isset($amounts_paid[$index]) ? floatval($amounts_paid[$index]) : 0;
-                $balance = $total_price - $amount_paid;
+                $balance = $item_total - $amount_paid;
 
                 // Insert purchase record
                 $insert_stmt->bind_param(
@@ -75,7 +77,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $student_name,
                     $book_name,
                     $quantity,
-                    $total_price,
+                    $item_total,
                     $amount_paid,
                     $balance,
                     $payment_type
@@ -86,19 +88,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // Commit transaction
         $conn->commit();
-        $_SESSION['success'] = "<div class='success-message'>Purchase recorded successfully!</div>";
 
+        // Redirect to receipt page with necessary details
+        header("Location: receipt.php?receipt_number=$receipt_no&admission_no=$admission_no&payment_type=$payment_type&total=$total_price");
+        exit();
+        
     } catch (Exception $e) {
         // Rollback in case of error
         $conn->rollback();
         $_SESSION['error'] = "<div class='error-message'>Transaction failed: " . $e->getMessage() . "</div>";
+        header("Location: purchase-book.php");
+        exit();
     }
-
-    // Redirect back to form
-    header("Location: purchase-book.php");
-    exit();
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
