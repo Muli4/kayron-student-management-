@@ -42,13 +42,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Begin database transaction
     $conn->begin_transaction();
-    $total_price = 0;
 
     try {
         // Prepare book fetching and insertion statements
         $book_stmt = $conn->prepare("SELECT book_name, price FROM book_prices WHERE book_id = ?");
         $insert_stmt = $conn->prepare("INSERT INTO book_purchases (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type) 
                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+        $_SESSION['receipt_books'] = []; // Store book details for receipt
 
         foreach ($selected_books as $index => $book_id) {
             $quantity = (int)$quantities[$index];
@@ -63,7 +64,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $book_name = $book['book_name'];
                 $price = $book['price'];
                 $item_total = $price * $quantity;
-                $total_price += $item_total;
 
                 // Get amount paid for this book
                 $amount_paid = isset($amounts_paid[$index]) ? floatval($amounts_paid[$index]) : 0;
@@ -83,14 +83,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $payment_type
                 );
                 $insert_stmt->execute();
+
+                // Store book details for receipt
+                $_SESSION['receipt_books'][] = [
+                    'name' => $book_name,
+                    'quantity' => $quantity,
+                    'amount_paid' => $amount_paid
+                ];
             }
         }
 
         // Commit transaction
         $conn->commit();
 
-        // Redirect to receipt page with necessary details
-        header("Location: receipt.php?receipt_number=$receipt_no&admission_no=$admission_no&payment_type=$payment_type&total=$total_price");
+        // Redirect to receipt page
+        header("Location: receipt.php?receipt_number=$receipt_no&admission_no=$admission_no&payment_type=$payment_type");
         exit();
         
     } catch (Exception $e) {
