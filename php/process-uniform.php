@@ -7,7 +7,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($action === "purchase") {
         $admission_no = trim($_POST['admission_no']);
-        $amount_paid = isset($_POST['amount_paid']) ? floatval($_POST['amount_paid']) : 0.0;
         $payment_type = $_POST['payment_type'] ?? 'Cash';
         $uniforms = $_POST['uniforms']; // Array of selected uniforms
 
@@ -27,28 +26,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $name = $student['name'];
         $stmt->close();
 
-        // Calculate total price
-        $total_price = 0;
-        $items = [];
-
         // Fetch uniform prices
-        $uniform_ids = implode(',', array_keys($uniforms));
-        $stmt = $conn->prepare("SELECT id, price FROM uniform_prices WHERE id IN ($uniform_ids)");
-        $stmt->execute();
-        $result = $stmt->get_result();
         $price_map = [];
+        if (!empty($uniforms)) {
+            $placeholders = implode(',', array_fill(0, count($uniforms), '?'));
+            $stmt = $conn->prepare("SELECT id, uniform_type, price FROM uniform_prices WHERE id IN ($placeholders)");
+            $stmt->bind_param(str_repeat('i', count($uniforms)), ...array_keys($uniforms));
+            $stmt->execute();
+            $result = $stmt->get_result();
 
-        while ($row = $result->fetch_assoc()) {
-            $price_map[$row['id']] = $row['price'];
+            while ($row = $result->fetch_assoc()) {
+                $price_map[$row['id']] = ['price' => $row['price'], 'type' => $row['uniform_type']];
+            }
+            $stmt->close();
         }
-        $stmt->close();
 
-        foreach ($uniforms as $uniform_id => $quantity) {
+        // Process uniform purchases
+        $items = [];
+        foreach ($uniforms as $uniform_id => $data) {
+            $quantity = isset($data['quantity']) ? intval($data['quantity']) : 0;
+            $amount_paid = isset($data['amount_paid']) ? floatval($data['amount_paid']) : 0;
+
             if ($quantity > 0 && isset($price_map[$uniform_id])) {
-                $price = $price_map[$uniform_id];
+                $price = $price_map[$uniform_id]['price'];
+                $uniform_type = $price_map[$uniform_id]['type'];
                 $subtotal = $price * $quantity;
-                $total_price += $subtotal;
-                $items[] = ['uniform_id' => $uniform_id, 'quantity' => $quantity, 'subtotal' => $subtotal];
+                $balance = $subtotal - $amount_paid; // Balance stored but not displayed
+
+                $items[] = [
+                    'uniform_type' => $uniform_type,
+                    'quantity' => $quantity,
+                    'subtotal' => $subtotal,
+                    'amount_paid' => $amount_paid,
+                    'balance' => $balance
+                ];
             }
         }
 
@@ -58,31 +69,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             exit();
         }
 
-        $balance = $total_price - $amount_paid;
         $receipt_number = "U-" . strtoupper(uniqid()) . "-" . mt_rand(1000, 9999);
 
         // **Begin Transaction**
         $conn->begin_transaction();
 
         try {
-            // Insert into uniform_purchases
-            $stmt = $conn->prepare("INSERT INTO uniform_purchases (receipt_number, name, admission_no, total_price, amount_paid, balance, payment_type) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssddds", $receipt_number, $name, $admission_no, $total_price, $amount_paid, $balance, $payment_type);
-            if (!$stmt->execute()) {
-                throw new Exception("Error inserting into uniform_purchases.");
-            }
-            $purchase_id = $stmt->insert_id;
+            // Insert each uniform purchase
+            $stmt = $conn->prepare("INSERT INTO uniform_purchases (receipt_number, name, admission_no, uniform_type, quantity, total_price, amount_paid, balance, payment_type) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-            // Insert into uniform_purchase_items
             foreach ($items as $item) {
-                $stmt = $conn->prepare("INSERT INTO uniform_purchase_items (purchase_id, uniform_id, quantity, subtotal) VALUES (?, ?, ?, ?)");
-                $stmt->bind_param("iiid", $purchase_id, $item['uniform_id'], $item['quantity'], $item['subtotal']);
+                $stmt->bind_param("sssiiidds", 
+                    $receipt_number, 
+                    $name, 
+                    $admission_no, 
+                    $item['uniform_type'], 
+                    $item['quantity'], 
+                    $item['subtotal'],  
+                    $item['amount_paid'], 
+                    $item['balance'], 
+                    $payment_type
+                );
                 if (!$stmt->execute()) {
-                    throw new Exception("Error inserting into uniform_purchase_items.");
+                    throw new Exception("Error inserting into uniform_purchases.");
                 }
             }
 
-            // **Commit transaction if everything is successful**
+            // **Commit transaction if successful**
             $conn->commit();
             $_SESSION['message'] = "<div class='success-message'>Uniform purchase recorded successfully!</div>";
 
@@ -102,6 +116,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 ?>
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -116,9 +131,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     </div>
     
     <div class="lunch-form">
-    <div class="add-heading">
-        <h2>Purchase Uniform</h2>
-    </div>
+        <div class="add-heading">
+            <h2>Purchase Uniform</h2>
+        </div>
         <?php
         if (isset($_SESSION['message'])) {
             echo $_SESSION['message'];
@@ -135,39 +150,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             <div class="form-group">
                 <label for="name">Student Name:</label>
-                <input type="text" id="name" name="name" required >
+                <input type="text" id="name" name="name" required>
             </div>
+
             <h3>Select Uniforms:</h3>
             <div id="uniforms-list">
             <?php
-            // Fetch uniforms from database
-            $stmt = $conn->prepare("SELECT id, uniform_type, size, price FROM uniform_prices");
+            include 'db.php'; // Include DB connection
+            $stmt = $conn->prepare("SELECT id, uniform_type, price FROM uniform_prices");
             $stmt->execute();
             $result = $stmt->get_result();
             while ($uniform = $result->fetch_assoc()):
             ?>
             <div class="uniform-item">
                 <label class="uniform-label">
-                    <input type="checkbox" name="uniforms[<?= $uniform['id']; ?>]" value="1">
-                    <span class="uniform-info"><?= $uniform['uniform_type'] . " - " . $uniform['size'] . " (KES " . $uniform['price'] . ")"; ?></span>
+                    <input type="checkbox" class="uniform-checkbox" data-id="<?= $uniform['id']; ?>" data-price="<?= $uniform['price']; ?>">
+                    <span class="uniform-info"><?= $uniform['uniform_type'] . " (KES " . $uniform['price'] . ")"; ?></span>
                 </label>
-                <input type="number" class="quantity" name="uniforms[<?= $uniform['id']; ?>]" data-price="<?= $uniform['price']; ?>" min="1" value="1" onchange="updateTotalPrice()">
+                <input type="number" class="quantity" name="uniforms[<?= $uniform['id']; ?>][quantity]" data-price="<?= $uniform['price']; ?>" min="1" value="0" disabled onchange="updateTotalPrice()">
+                <input type="number" class="amount-paid" name="uniforms[<?= $uniform['id']; ?>][amount_paid]" min="0" value="0" disabled>
             </div>
             <?php endwhile; ?>
             </div>
 
-            <div class="">
+            <div class="form-group">
                 <p id="total_price">Total Price: KES 0.00</p>
             </div>
 
             <div class="form-group">
-                <label for="amount_paid">Amount Paid (KES):</label>
-                <input type="number" name="amount_paid" min="0" required>
+                <label for="payment_type">Payment Type:</label>
+                <select name="payment_type" required>
+                    <option value="Cash">Cash</option>
+                    <option value="m-pesa">M-Pesa</option>
+                    <option value="bank-transfer">Bank Transfer</option>
+                </select>
             </div>
 
             <div class="button-container">
                 <button type="submit" class="add-student-btn">Purchase</button>
-                <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to dashboard</a></button>
+                <button type="button" class="add-student-btn">
+                    <a href="./dashboard.php">Back to Dashboard</a>
+                </button>
             </div>
         </form>
     </div>
@@ -175,40 +198,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <footer class="footer-dash">
         <p>&copy; <?php echo date("Y")?> Kayron Junior School. All Rights Reserved.</p>
     </footer>
+
     <script>
         function updateTotalPrice() {
             var total = 0;
             document.querySelectorAll(".uniform-item").forEach(function(row) {
-                var checkbox = row.querySelector("input[type='checkbox']");
+                var checkbox = row.querySelector(".uniform-checkbox");
                 var quantityInput = row.querySelector(".quantity");
                 var price = parseFloat(quantityInput.dataset.price) || 0;
                 var quantity = parseInt(quantityInput.value) || 0;
 
-                // Only add price if the checkbox is checked and quantity is greater than 0
                 if (checkbox.checked && quantity > 0) {
                     total += price * quantity;
                 }
             });
+
             document.getElementById("total_price").textContent = "Total Price: KES " + total.toFixed(2);
         }
-        
-        // Attach event listeners to checkboxes and quantity inputs
-        document.addEventListener("DOMContentLoaded", function () {
-            document.querySelectorAll(".uniform-item").forEach(function(row) {
-                var checkbox = row.querySelector("input[type='checkbox']");
-                var quantityInput = row.querySelector(".quantity");
 
-                // Update total price when checkbox is clicked
-                checkbox.addEventListener("change", function() {
-                    if (!this.checked) {
-                        quantityInput.value = 0; // Reset quantity if unchecked
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".uniform-checkbox").forEach(function(checkbox) {
+                checkbox.addEventListener("change", function () {
+                    var row = this.closest(".uniform-item");
+                    var quantityInput = row.querySelector(".quantity");
+                    var amountPaidInput = row.querySelector(".amount-paid");
+
+                    if (this.checked) {
+                        quantityInput.value = 1; 
+                        quantityInput.disabled = false;
+                        amountPaidInput.disabled = false;
+                    } else {
+                        quantityInput.value = 0;
+                        amountPaidInput.value = 0;
+                        quantityInput.disabled = true;
+                        amountPaidInput.disabled = true;
                     }
                     updateTotalPrice();
                 });
-                // Update total price when quantity is changed
-                quantityInput.addEventListener("input", updateTotalPrice);
             });
-        });    
+
+            document.querySelectorAll(".quantity").forEach(function(input) {
+                input.addEventListener("input", updateTotalPrice);
+            });
+        });
     </script>
 </body>
 </html>
+
