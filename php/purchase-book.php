@@ -184,7 +184,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
 
         <div class="button-container">
-            <button type="submit" class="add-student-btn" id="purchase-btn">Purchase book(s)</button>
+            <button type="submit" class="add-student-btn" id="purchase-btn">Purchase Book(s)</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
 
