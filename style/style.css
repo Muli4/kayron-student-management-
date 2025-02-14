@@ -609,27 +609,28 @@ html, body {
 }
 
 /* purchase books */
-
-.book-item{
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #ffffff; /* White background for contrast */
-    padding: 10px;
+#books-list{
+    gap: 15px; 
+    background: #f9f9f9;
     border-radius: 8px;
-    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+}
+.book-item{
     margin-bottom: 10px;
-    transition: 0.3s;
+    font-size: 16px;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: #fff;
+    transition: all 0.3s ease-in-out;
 }
 .book-item:hover{
-    transform: scale(1.02);
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+    background: #f0f8ff;
+    transform: scale(1.02); 
 }
 .book-label{
     flex: 1;
     font-size: 16px;
     font-weight: bold;
-    color: #333;
 }
 .book-checkbox{
     width: 18px;
@@ -641,19 +642,67 @@ html, body {
 }
 .book-item .quantity,
 .book-item .amount-paid {
-    width: 100px;
-    padding: 5px;
+    width: 120px;
+    padding: 6px;
     font-size: 14px;
     border: 1px solid #ccc;
-    border-radius: 5px;
+    border-radius: 4px;
     text-align: center;
     background: #fff;
+    transition: border 0.3s;
 }
-.book-item .quantity{
-    margin-left: 5px;
+.uniform-item .amount-paid {
+    width: 50%;
+    margin-left: 30px; 
 }
-.book-item .amount-paid{
-    margin-right: 5px;
+
+/* process uniform */
+#uniforms-list {
+    gap: 15px; 
+    background: #f9f9f9;
+    border-radius: 8px;
+}
+.uniform-item {
+    margin-bottom: 10px;
+    font-size: 16px;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: #fff;
+    transition: all 0.3s ease-in-out;
+}
+.uniform-item:hover {
+    background: #f0f8ff;
+    transform: scale(1.02); 
+}
+
+.uniform-item label {
+    flex: 1;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.uniform-item .quantity,
+.uniform-item .amount-paid {
+    width: 120px;
+    padding: 6px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    background: #fff;
+    transition: border 0.3s;
+}
+
+.uniform-item .quantity:focus,
+.uniform-item .amount-paid:focus {
+    border-color: #007bff; 
+    outline: none;
+}
+
+.uniform-item .amount-paid {
+    width: 50%;
+    margin-left: 30px; /* Space between quantity and amount paid */
 }
 
 /* Mobile Responsive Styles */
