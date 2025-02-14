@@ -27,36 +27,36 @@ while ($row = $result->fetch_assoc()) {
     $stmt_fees->bind_param("s", $admission_no);
     $stmt_fees->execute();
     $fees_result = $stmt_fees->get_result();
-    $fees_balance = ($fees_row = $fees_result->fetch_assoc()) ? $fees_row['balance'] : 0;
-    $fees_display = ($fees_balance > 0) ? $fees_balance : "Paid";
+    $fees_balance = ($fees_row = $fees_result->fetch_assoc()) ? $fees_row['balance'] : null;
+    $fees_display = ($fees_balance === null) ? "0" : (($fees_balance > 0) ? $fees_balance : "Paid");
 
     // Get balance from lunch_fee filtered by week number
     $stmt_lunch = $conn->prepare("SELECT balance FROM lunch_fees WHERE admission_no = ? AND week_number = ?");
     $stmt_lunch->bind_param("si", $admission_no, $week_number);
     $stmt_lunch->execute();
     $lunch_result = $stmt_lunch->get_result();
-    $lunch_balance = ($lunch_row = $lunch_result->fetch_assoc()) ? $lunch_row['balance'] : 0;
-    $lunch_display = ($lunch_balance > 0) ? $lunch_balance : "Paid";
+    $lunch_balance = ($lunch_row = $lunch_result->fetch_assoc()) ? $lunch_row['balance'] : null;
+    $lunch_display = ($lunch_balance === null) ? "0" : (($lunch_balance > 0) ? $lunch_balance : "Paid");
 
     // Get total balance from book_purchases
     $stmt_books = $conn->prepare("SELECT SUM(balance) AS total_balance FROM book_purchases WHERE admission_no = ?");
     $stmt_books->bind_param("s", $admission_no);
     $stmt_books->execute();
     $books_result = $stmt_books->get_result();
-    $books_balance = ($books_row = $books_result->fetch_assoc()) ? $books_row['total_balance'] : 0;
-    $books_display = ($books_balance > 0) ? $books_balance : "Paid";
+    $books_balance = ($books_row = $books_result->fetch_assoc()) ? $books_row['total_balance'] : null;
+    $books_display = ($books_balance === null) ? "0" : (($books_balance > 0) ? $books_balance : "Paid");
 
     // Get total balance from uniform_purchases
     $stmt_uniform = $conn->prepare("SELECT SUM(balance) AS total_balance FROM uniform_purchases WHERE admission_no = ?");
     $stmt_uniform->bind_param("s", $admission_no);
     $stmt_uniform->execute();
     $uniform_result = $stmt_uniform->get_result();
-    $uniform_balance = ($uniform_row = $uniform_result->fetch_assoc()) ? $uniform_row['total_balance'] : 0;
-    $uniform_display = ($uniform_balance > 0) ? $uniform_balance : "Paid";
+    $uniform_balance = ($uniform_row = $uniform_result->fetch_assoc()) ? $uniform_row['total_balance'] : null;
+    $uniform_display = ($uniform_balance === null) ? "0" : (($uniform_balance > 0) ? $uniform_balance : "Paid");
 
-    // Calculate total balance
-    $total_balance = $fees_balance + $lunch_balance + $books_balance + $uniform_balance;
-    $total_display = ($total_balance > 0) ? $total_balance : "Paid";
+    // Calculate total balance (only sum values that are not null)
+    $total_balance = ($fees_balance ?? 0) + ($lunch_balance ?? 0) + ($books_balance ?? 0) + ($uniform_balance ?? 0);
+    $total_display = ($total_balance > 0) ? $total_balance : (($fees_balance === null && $lunch_balance === null && $books_balance === null && $uniform_balance === null) ? "0" : "Paid");
 
     // Store student data
     $students[] = [
@@ -70,6 +70,7 @@ while ($row = $result->fetch_assoc()) {
     ];
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
