@@ -83,6 +83,19 @@ CREATE TABLE lunch_fee_transactions (
 );
 
 
+CREATE TABLE others (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    receipt_number VARCHAR(50) NOT NULL,
+    admission_no VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    term ENUM('term1', 'term2', 'term3') DEFAULT NULL,
+    fee_type ENUM('Admission', 'Activity', 'Exam', 'Interview') NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
+    INDEX (admission_no)
+);
 
 
 CREATE TABLE book_prices (
@@ -115,7 +128,7 @@ INSERT INTO book_prices (book_name, category, price) VALUES
 
 CREATE TABLE uniform_prices (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    uniform_type ENUM('Uniform', 'P.E T-Shirt', 'Track Suit 20-26', 'Track Suit 28-32') NOT NULL,
+    uniform_type ENUM('Uniform', 'P.E T-Shirt', 'Track Suit', 'Track Suit') NOT NULL,
     size VARCHAR(50) NOT NULL,
     price DECIMAL(10,2) NOT NULL
 );
@@ -125,7 +138,7 @@ CREATE TABLE uniform_purchases (
     receipt_number VARCHAR(50) NOT NULL,
     name VARCHAR(100) NOT NULL,
     admission_no VARCHAR(50) NOT NULL,
-    uniform_type ENUM('Uniform', 'P.E T-Shirt', 'Track Suit 20-26', 'Track Suit 28-32') NOT NULL,
+    uniform_type ENUM('Uniform', 'P.E T-Shirt', 'Track Suit', 'Track Suit') NOT NULL,
     quantity INT NOT NULL,
     total_price DECIMAL(10,2) NOT NULL,
     amount_paid DECIMAL(10,2) NOT NULL,
@@ -138,25 +151,10 @@ CREATE TABLE uniform_purchases (
 INSERT INTO uniform_prices (uniform_type, size, price) VALUES
 ('Uniform', 'All Sizes', 1000.00),
 ('P.E T-Shirt', 'All Sizes', 450.00),
-('Track Suit Size', '20-26', 1800.00),
-('Track Suit Size', '28-32', 2000.00);
+('Track Suit', '20-26', 1800.00),
+('Track Suit', '28-32', 2000.00);
 
 
-
-
-CREATE TABLE others (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    receipt_number VARCHAR(50) NOT NULL,
-    admission_no VARCHAR(50) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    term ENUM('term1', 'term2', 'term3') DEFAULT NULL,
-    fee_type ENUM('Admission', 'Activity', 'Exam', 'Interview') NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
-    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
-    INDEX (admission_no)
-);
 
 
 
@@ -171,3 +169,4 @@ CREATE TABLE teacher_records(
     teacher_photo LONGBLOB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
