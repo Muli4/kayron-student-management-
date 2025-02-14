@@ -27,27 +27,42 @@ $student_result = $stmt->get_result();
 $student_name = $student_result->num_rows > 0 ? htmlspecialchars($student_result->fetch_assoc()['name']) : "Unknown";
 $stmt->close();
 
-// Fetch payments (fees or books)
+// Fetch payments (fees)
 $fees = isset($_GET['fees']) ? json_decode($_GET['fees'], true) : [];
 $books = [];
+$uniforms = [];
 
-if ($payment_type === "books") { // Only fetch books if the payment is for books
+// Fetch books if payment type is "books"
+if ($payment_type === "books") {
     $books = $_SESSION['receipt_books'] ?? [];
 }
+
+// Fetch uniform purchases
+$uniform_query = "SELECT uniform_type, quantity, amount_paid FROM uniform_purchases WHERE receipt_number = ?";
+$stmt = $conn->prepare($uniform_query);
+$stmt->bind_param("s", $receipt_number);
+$stmt->execute();
+$uniform_result = $stmt->get_result();
+
+while ($row = $uniform_result->fetch_assoc()) {
+    $uniforms[] = $row;
+}
+
+$stmt->close();
 
 // Calculate the total dynamically
 $total = 0;
 foreach ($fees as $amount) {
     $total += (float) $amount;
 }
-
-if ($payment_type === "books") {
-    foreach ($books as $book) {
-        $total += (float) $book['amount_paid'];
-    }
+foreach ($books as $book) {
+    $total += (float) $book['amount_paid'];
+}
+foreach ($uniforms as $uniform) {
+    $total += (float) $uniform['amount_paid'];
 }
 
-// Generate barcode URL (resized)
+// Generate barcode URL
 $barcode_url = "https://barcode.tec-it.com/barcode.ashx?data=" . urlencode($receipt_number) . "&code=Code128&dpi=96";
 ?>
 
@@ -84,6 +99,7 @@ $barcode_url = "https://barcode.tec-it.com/barcode.ashx?data=" . urlencode($rece
     Payment Method: <strong><?php echo ucfirst($payment_type); ?></strong>
     <div class="line"></div>
 
+    <!-- Fee Payments -->
     <?php if (!empty($fees)): ?>
         <strong>Fee Payments</strong>
         <table width="100%">
@@ -98,8 +114,10 @@ $barcode_url = "https://barcode.tec-it.com/barcode.ashx?data=" . urlencode($rece
                 </tr>
             <?php endforeach; ?>
         </table>
+        <div class="line"></div>
     <?php endif; ?>
 
+    <!-- Book Purchases -->
     <?php if (!empty($books) && $payment_type === "books"): ?>
         <strong>Book Purchases</strong>
         <table width="100%">
@@ -116,14 +134,34 @@ $barcode_url = "https://barcode.tec-it.com/barcode.ashx?data=" . urlencode($rece
                 </tr>
             <?php endforeach; ?>
         </table>
+        <div class="line"></div>
     <?php endif; ?>
 
-    <div class="line"></div>
+    <!-- Uniform Purchases -->
+    <?php if (!empty($uniforms)): ?>
+        <strong>Uniform Purchases</strong>
+        <table width="100%">
+            <tr>
+                <th>Uniform</th>
+                <th>Qty</th>
+                <th>Amount Paid</th>
+            </tr>
+            <?php foreach ($uniforms as $uniform): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($uniform['uniform_type']); ?></td>
+                    <td><?php echo htmlspecialchars($uniform['quantity']); ?></td>
+                    <td class="amount">KES <?php echo number_format($uniform['amount_paid'], 2); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </table>
+        <div class="line"></div>
+    <?php endif; ?>
+
     <div class="total">TOTAL: KES <?php echo number_format($total, 2); ?></div>
     <div class="approved">Payment Approved By: <strong><?php echo $approved_by; ?></strong></div>
     <div class="thank-you">Thank you for trusting in our school. Always working to output the best!</div>
 
-    <!-- Barcode (Resized to fit within the receipt) -->
+    <!-- Barcode -->
     <div class="barcode">
         <img src="<?php echo $barcode_url; ?>" alt="Receipt Barcode">
     </div>
