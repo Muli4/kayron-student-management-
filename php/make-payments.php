@@ -104,6 +104,29 @@ $(document).ready(function () {
         updateTotal();
     });
 
+    // Check admission fee status when admission number is entered
+    $("#admission_no").on("blur", async function () {
+        let admission_no = $(this).val().trim();
+        if (!admission_no) return;
+
+        try {
+            let response = await $.post("check-admission-fee.php", { admission_no });
+            let result = JSON.parse(response);
+
+            if (result.status === "paid") {
+                $("#admission_fee").prop("disabled", true).prop("checked", false);
+                $("input[name='amount_admission']").prop("disabled", true).val("");
+                $("#admission_message").html(`<span style="color: green;">✔ Admission fee already paid.</span>`);
+            } else {
+                $("#admission_fee").prop("disabled", false);
+                $("#admission_message").html("");
+            }
+        } catch (error) {
+            console.error("Error checking admission fee:", error);
+            $("#admission_message").html(`<span style="color: red;">❌ Error checking admission fee status.</span>`);
+        }
+    });
+
     // Update total price when amount fields change
     $(".fee-amount").on("input", updateTotal);
 
@@ -176,7 +199,7 @@ $(document).ready(function () {
             return;
         }
 
-        submitBtn.prop("disabled", true).text("Processing...");
+        submitBtn.css("background-color", "orange").text("Processing...").prop("disabled", true);
 
         // Process Payments
         setTimeout(async function () {
@@ -185,10 +208,10 @@ $(document).ready(function () {
 
                 if (failedPayments.length > 0) {
                     messageBox.html(`<div class="warning-message">⚠️ Some payments failed: ${failedPayments.join(", ")}. Please retry.</div>`);
-                    submitBtn.prop("disabled", false).text("Retry Failed Payments");
+                    submitBtn.css("background-color", "red").text("Retry Failed Payments").prop("disabled", false);
                 } else {
                     messageBox.html(`<div class="success-message">✅ Payment successful! Redirecting...</div>`);
-                    submitBtn.text("Paid");
+                    submitBtn.css("background-color", "green").text("Paid");
 
                     // Redirect to receipt page
                     let receiptData = {
@@ -206,7 +229,7 @@ $(document).ready(function () {
             } catch (err) {
                 console.error("Payment Error:", err);
                 messageBox.html(`<div class="error-message">❌ An error occurred while processing payment.</div>`);
-                submitBtn.prop("disabled", false).text("Proceed to Pay");
+                submitBtn.css("background-color", "red").text("Proceed to Pay").prop("disabled", false);
             }
         }, 2000);
     });
@@ -218,8 +241,8 @@ $(document).ready(function () {
         return "REC" + timestamp + randomPart;
     }
 });
-
 </script>
+
 
 </body>
 </html>
