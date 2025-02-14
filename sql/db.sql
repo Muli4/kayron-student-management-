@@ -139,6 +139,7 @@ CREATE TABLE uniform_purchases (
     name VARCHAR(100) NOT NULL,
     admission_no VARCHAR(50) NOT NULL,
     uniform_type ENUM('Uniform', 'P.E T-Shirt', 'Track Suit', 'Track Suit') NOT NULL,
+    size VARCHAR(50) NOT NULL,
     quantity INT NOT NULL,
     total_price DECIMAL(10,2) NOT NULL,
     amount_paid DECIMAL(10,2) NOT NULL,
