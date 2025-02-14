@@ -1,14 +1,15 @@
 <?php
 require 'db.php'; // Include database connection
 
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] : '';
-$end_date = isset($_GET['end_date']) ? $_GET['end_date'] : '';
+// Get start and end date from user input
+$start_date = isset($_GET['start_date']) ? $_GET['start_date'] . " 00:00:00" : '';
+$end_date = isset($_GET['end_date']) ? $_GET['end_date'] . " 23:59:59" : '';
 
 $total_book_payments = 0;
 $total_uniform_payments = 0;
 $total_school_fee_payments = 0;
 $total_lunch_payments = 0;
-$total_others_payments = 0; // Added Others Table
+$total_others_payments = 0;
 $grand_total = 0;
 
 if (!empty($start_date) && !empty($end_date)) {
@@ -57,66 +58,119 @@ if (!empty($start_date) && !empty($end_date)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weekly Payment Report</title>
+    <title>Financial Report</title>
     <link rel="stylesheet" href="../style/style.css">
 </head>
 <body>
-<div class="container">
-    <h2>Weekly Payment Report</h2>
+<div class="heading-all">
+    <h2 class="title">Kayron Junior School</h2>
+</div>
 
-    <!-- Date Selection Form -->
+<div class="container">
+    <h2>Financial Report</h2>
+
+    <!-- Date selection form -->
     <form method="GET" action="">
         <label for="start_date">Start Date:</label>
-        <input type="date" id="start_date" name="start_date" value="<?= htmlspecialchars($start_date); ?>" required>
+        <input type="datetime-local" id="start_date" name="start_date" value="<?= htmlspecialchars(substr($start_date, 0, 16)); ?>" required>
 
         <label for="end_date">End Date:</label>
-        <input type="date" id="end_date" name="end_date" value="<?= htmlspecialchars($end_date); ?>" required>
+        <input type="datetime-local" id="end_date" name="end_date" value="<?= htmlspecialchars(substr($end_date, 0, 16)); ?>" required>
 
-        <button type="submit">Generate Report</button>
+        <button type="submit">Filter</button>
     </form>
 
-    <?php if (!empty($start_date) && !empty($end_date)): ?>
-        <h3>Payments from <?= htmlspecialchars($start_date); ?> to <?= htmlspecialchars($end_date); ?></h3>
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Category</th>
-                    <th>Amount Paid</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Book Purchases</td>
-                    <td><?= number_format($total_book_payments, 2); ?></td>
-                </tr>
-                <tr>
-                    <td>Uniform Purchases</td>
-                    <td><?= number_format($total_uniform_payments, 2); ?></td>
-                </tr>
-                <tr>
-                    <td>School Fees</td>
-                    <td><?= number_format($total_school_fee_payments, 2); ?></td>
-                </tr>
-                <tr>
-                    <td>Lunch Fees</td>
-                    <td><?= number_format($total_lunch_payments, 2); ?></td>
-                </tr>
-                <tr>
-                    <td>Others</td>
-                    <td><?= number_format($total_others_payments, 2); ?></td>
-                </tr>
-                <tr>
-                    <th>Total</th>
-                    <th><?= number_format($grand_total, 2); ?></th>
-                </tr>
-            </tbody>
-        </table>
-    <?php endif; ?>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Amount (KES)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Book Purchases</td>
+                <td><?= number_format($total_book_payments, 2); ?></td>
+            </tr>
+            <tr>
+                <td>Uniform Purchases</td>
+                <td><?= number_format($total_uniform_payments, 2); ?></td>
+            </tr>
+            <tr>
+                <td>School Fees</td>
+                <td><?= number_format($total_school_fee_payments, 2); ?></td>
+            </tr>
+            <tr>
+                <td>Lunch Fees</td>
+                <td><?= number_format($total_lunch_payments, 2); ?></td>
+            </tr>
+            <tr>
+                <td>Others</td>
+                <td><?= number_format($total_others_payments, 2); ?></td>
+            </tr>
+            <tr>
+                <th>Total</th>
+                <th><?= number_format($grand_total, 2); ?></th>
+            </tr>
+        </tbody>
+    </table>
 </div>
 
 <div class="button-container">
-    <button type="button"><a href="./dashboard.php">Back to Dashboard</a></button>
+    <button type="button" class="back-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
 </div>
+<footer class="footer-dash">
+    <p>&copy; <?= date("Y") ?> Kayron Junior School. All Rights Reserved.</p>
+</footer>
+
+<style>
+/* Basic Styles */
+.container {
+    flex: 1;
+    width: 80%;
+    margin: 20px auto;
+    font-family: Arial, sans-serif;
+}
+.container h2{
+    text-align: center;
+}
+form {
+    text-align: center;
+    margin-bottom: 20px;
+}
+input[type="datetime-local"] {
+    padding: 8px;
+    margin: 5px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+th, td {
+    padding: 10px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+th {
+    background: #007bff;
+    color: white;
+}
+button {
+    padding: 10px 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+button a {
+    color: white;
+    text-decoration: none;
+}
+button:hover {
+    background: #0056b3;
+}
+</style>
 
 </body>
 </html>
