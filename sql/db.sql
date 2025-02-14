@@ -79,7 +79,7 @@ CREATE TABLE lunch_fee_transactions (
     class ENUM('babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6') NOT NULL,
     amount_paid DECIMAL(10, 2) NOT NULL,
     payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 
