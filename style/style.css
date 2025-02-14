@@ -529,7 +529,7 @@ html, body {
     background: #0056b3;
 }
 
-/* Uniform List Styling */
+/* common price*/
 
 #total_price {
     font-size: 18px;
@@ -606,6 +606,54 @@ html, body {
     font-size: 18px;
     font-weight: bold;
     color: #007bff;
+}
+
+/* purchase books */
+
+.book-item{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff; /* White background for contrast */
+    padding: 10px;
+    border-radius: 8px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    margin-bottom: 10px;
+    transition: 0.3s;
+}
+.book-item:hover{
+    transform: scale(1.02);
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+}
+.book-label{
+    flex: 1;
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+}
+.book-checkbox{
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+.book-info{
+    flex-grow: 1;
+}
+.book-item .quantity,
+.book-item .amount-paid {
+    width: 100px;
+    padding: 5px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    text-align: center;
+    background: #fff;
+}
+.book-item .quantity{
+    margin-left: 5px;
+}
+.book-item .amount-paid{
+    margin-right: 5px;
 }
 
 /* Mobile Responsive Styles */
