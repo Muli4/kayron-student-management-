@@ -44,12 +44,12 @@ if (!isset($_SESSION['username'])) {
                 <a href="./add-student.php" class="link-card">Add Student</a>
                 <a href="./manage-students.php" class="link-card">View Student(s)</a>
                 <a href="./view-balances.php" class="link-card">view balance(s)</a>
-                <a href="#" class="link-card">Lunch Fees</a>
                 <a href="./make-payments.php" class="link-card">Make Payments</a>
                 <a href="./purchase-book.php" class="link-card">purchase diary | assessment</a>
                 <a href="./process-uniform.php" class="link-card">purchase uniform</a>
-                <a href="#" class="link-card">Othe</a>
-                <a href="./clear-balance.php" class="link-card">Clear Balance</a>
+                <a href="./weekly-report.php" class="link-card">Weekly Report</a>
+                <a href="#" class="link-card">Other</a>
+                <a href="#" class="link-card">Clear Balance</a>
                 <a href="#" class="link-card">Print Receipt</a>
                 <a href="#" class="link-card">School Exams</a>
                 <a href="#" class="link-card">Subordinate Staff</a>
