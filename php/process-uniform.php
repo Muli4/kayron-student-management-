@@ -1,28 +1,23 @@
 <?php
 session_start();
-
-// Database connection
 $conn = new mysqli("localhost", "root", "", "school_database");
 
 if ($conn->connect_error) {
-    $_SESSION['error'] = "<div class='error-message'>Database connection failed.</div>";
-    header("Location: process-uniform.php");
+    echo json_encode(["status" => "error", "message" => "Database connection failed."]);
     exit();
 }
 
-// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $admission_no = trim($_POST['admission_no']);
     $receipt_no = trim($_POST['receipt_number']);
     $selected_uniforms = $_POST['uniforms'] ?? [];
-    $sizes = $_POST['sizes'] ?? [];
     $quantities = $_POST['quantities'] ?? [];
+    $sizes = $_POST['sizes'] ?? [];
     $amounts_paid = $_POST['amounts_paid'] ?? [];
     $payment_type = $_POST['payment_type'];
 
     if (empty($selected_uniforms)) {
-        $_SESSION['error'] = "<div class='error-message'>Please select at least one uniform.</div>";
-        header("Location: process-uniform.php");
+        echo json_encode(["status" => "error", "message" => "Please select at least one uniform."]);
         exit();
     }
 
@@ -33,27 +28,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_result = $stmt->get_result();
 
     if ($student_result->num_rows === 0) {
-        $_SESSION['error'] = "<div class='error-message'>Invalid admission number!</div>";
-        header("Location: process-uniform.php");
+        echo json_encode(["status" => "error", "message" => "Invalid admission number!"]);
         exit();
     }
 
     $student = $student_result->fetch_assoc();
     $student_name = $student['name'];
 
-    // Begin transaction
     $conn->begin_transaction();
-
     try {
-        // Prepare uniform fetching and insertion statements
         $uniform_stmt = $conn->prepare("SELECT uniform_type, size, price FROM uniform_prices WHERE id = ?");
         $insert_stmt = $conn->prepare("INSERT INTO uniform_purchases (receipt_number, admission_no, name, uniform_type, size, quantity, total_price, amount_paid, balance, payment_type) 
                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-        $_SESSION['receipt_uniforms'] = [];
-
         foreach ($selected_uniforms as $index => $uniform_id) {
             $quantity = (int)$quantities[$index];
+            $size = $sizes[$index];
 
             // Fetch uniform details
             $uniform_stmt->bind_param("i", $uniform_id);
@@ -63,14 +53,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($uniform_result->num_rows > 0) {
                 $uniform = $uniform_result->fetch_assoc();
                 $uniform_type = $uniform['uniform_type'];
-                $size = $uniform['size']; // Get size
                 $price = $uniform['price'];
                 $item_total = $price * $quantity;
 
                 $amount_paid = isset($amounts_paid[$index]) ? floatval($amounts_paid[$index]) : 0;
                 $balance = $item_total - $amount_paid;
 
-                // Insert purchase record
                 $insert_stmt->bind_param(
                     "sssssiddds",
                     $receipt_no,
@@ -85,24 +73,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $payment_type
                 );
                 $insert_stmt->execute();
-
-                $_SESSION['receipt_uniforms'][] = [
-                    'name' => $uniform_type,
-                    'size' => $size,
-                    'quantity' => $quantity,
-                    'amount_paid' => $amount_paid
-                ];
             }
         }
 
         $conn->commit();
-        header("Location: receipt.php?receipt_number=$receipt_no&admission_no=$admission_no&payment_type=$payment_type");
+        echo json_encode(["status" => "success", "message" => "Payment successful. Redirecting to print....", "redirect" => "receipt.php?receipt_number=$receipt_no&admission_no=$admission_no&payment_type=$payment_type"]);
         exit();
 
     } catch (Exception $e) {
         $conn->rollback();
-        $_SESSION['error'] = "<div class='error-message'>Transaction failed: " . $e->getMessage() . "</div>";
-        header("Location: process-uniform.php");
+        echo json_encode(["status" => "error", "message" => "Transaction failed: " . $e->getMessage()]);
         exit();
     }
 }
@@ -114,6 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Purchase Uniform</title>
     <link rel="stylesheet" href="../style/style.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
 
@@ -124,8 +105,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <div class="lunch-form">
     <div class="add-heading">
         <h2>Purchase Uniform</h2>
+        <p id="message" class="status-message"></p> <!-- ✅ Message appears here -->
     </div>
-    <form action="process-uniform.php" method="POST" id="purchase-form">
+
+    <form id="purchase-form">
         <input type="hidden" id="receipt_number" name="receipt_number">
 
         <div class="form-group">
@@ -147,7 +130,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <?= $uniform['uniform_type'] . " - Size: " . $uniform['size'] . " (KES " . $uniform['price'] . ")"; ?>
                 </label>
                 <input type="hidden" name="sizes[]" value="<?= $uniform['size']; ?>">
-
                 <input type="number" class="quantity" name="quantities[]" data-price="<?= $uniform['price']; ?>" min="1" value="1">
                 <input type="number" class="amount-paid" name="amounts_paid[]" placeholder="Enter Amount Paid" min="0">
             </div>
@@ -166,17 +148,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
 
         <div class="button-container">
-            <button type="submit" class="add-student-btn" id="purchase-btn">Purchase Uniform(s)</button>
+            <button type="submit" id="purchase-btn" class="add-student-btn">Purchase Uniform(s)</button>
             <button type="button" class="add-student-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
         </div>
     </form>
 </div>
 
+<style>
+    .status-message {
+        display: none;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .success {
+        background-color: #4CAF50; /* Green */
+        color: white;
+    }
+
+    .error {
+        background-color: #F44336; /* Red */
+        color: white;
+    }
+</style>
+
 <script>
     function generateReceiptNumber() {
-        let timestamp = Date.now().toString(36).toUpperCase();
-        let randomPart = Math.random().toString(36).substr(2, 5).toUpperCase();
-        return "REC" + timestamp + randomPart;
+        return "REC" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 5).toUpperCase();
     }
 
     function calculateTotal() {
@@ -194,10 +195,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         document.getElementById("total_price").textContent = `Total Price: KES ${total.toFixed(2)}`;
     }
 
-    document.addEventListener("DOMContentLoaded", function () {
-        document.getElementById("receipt_number").value = generateReceiptNumber();
-        document.querySelectorAll(".uniform-checkbox, .quantity").forEach(element => {
-            element.addEventListener("input", calculateTotal);
+    $(document).ready(function () {
+        $("#receipt_number").val(generateReceiptNumber());
+
+        $(".uniform-checkbox, .quantity").on("input", calculateTotal);
+
+        $("#purchase-form").submit(function (e) {
+            e.preventDefault();
+
+            let button = $("#purchase-btn");
+            let message = $("#message");
+            message.removeClass("success error").hide();
+            button.text("Processing...").css("background-color", "orange");
+
+            $.post("process-uniform.php", $(this).serialize(), function (response) {
+                message.text(response.message).fadeIn().addClass(response.status === "success" ? "success" : "error");
+
+                if (response.status === "success") {
+                    button.text("Paid").css("background-color", "green");
+                    setTimeout(() => window.location.href = response.redirect, 2000);
+                } else {
+                    button.text("Retry").css("background-color", "red");
+                }
+
+                setTimeout(() => message.fadeOut(), 5000);
+            }, "json");
         });
     });
 </script>
