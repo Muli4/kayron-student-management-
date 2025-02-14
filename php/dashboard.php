@@ -42,8 +42,8 @@ if (!isset($_SESSION['username'])) {
             
             <div class="links-grid">
                 <a href="./add-student.php" class="link-card">Add Student</a>
-                <a href="#" class="link-card">View Student | Teacher</a>
-                <a href="#" class="link-card">Remove Student | Teacher</a>
+                <a href="./manage-students.php" class="link-card">View Student(s)</a>
+                <a href="./view-balances.php" class="link-card">view balance(s)</a>
                 <a href="#" class="link-card">Lunch Fees</a>
                 <a href="./make-payments.php" class="link-card">Make Payments</a>
                 <a href="./purchase-book.php" class="link-card">purchase diary | assessment</a>
