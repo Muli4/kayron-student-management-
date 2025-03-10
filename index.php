@@ -50,6 +50,6 @@
 });
 
     </script>
-    <script src="./js/java-script.js"></script>
+    <script src="./j/java-script.js"></script>
 </body>
 </html>
