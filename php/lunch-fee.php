@@ -1,120 +1,152 @@
 <?php
 session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: ../index.php");
+    exit();
+}
 include 'db.php';
 
 $daily_fee = 70;
-$_SESSION['statusMessage'] = '';
+$valid_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-// Get first registered day of the term
-$stmt = $conn->prepare("SELECT day_name FROM days ORDER BY id ASC LIMIT 1");
-$stmt->execute();
-$active_day_result = $stmt->get_result();
-$active_day_data = $active_day_result->fetch_assoc();
-$stmt->close();
-
-if (!$active_day_data) {
-    $_SESSION['statusMessage'] = "<div class='error'>No days registered yet!</div>";
-    header("Location: pay-lunch.php");
-    exit();
-}
-
-$start_day = strtolower($active_day_data['day_name']);
-$start_day_index = array_search($start_day, ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
-
-if ($start_day_index === false) {
-    $_SESSION['statusMessage'] = "<div class='error'>Invalid starting day in days table!</div>";
-    header("Location: pay-lunch.php");
-    exit();
-}
-
-$valid_days_first_week = array_slice(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], $start_day_index);
-$total_weekly_fee_first_week = count($valid_days_first_week) * $daily_fee;
-$valid_days_full_week = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-$total_weekly_fee_full_week = 5 * $daily_fee;
-
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $admission_no = trim($_POST['admission_no'] ?? '');
     $amount = floatval($_POST['amount'] ?? 0);
-    $payment_type = $_POST['payment_type'] ?? 'Cash';
-    $name = $_POST['name'] ?? '';
-    $class = $_POST['class'] ?? '';
-    $receipt_no = $_POST['receipt_no'] ?? '';
+    $payment_type = $_POST['payment_method'] ?? 'Cash';
+    $receipt_no = trim($_POST['receipt_number'] ?? '');
 
-    if (empty($admission_no) || $amount <= 0 || empty($receipt_no)) {
-        $_SESSION['statusMessage'] = "<div class='error'>Missing required payment information!</div>";
-        header("Location: pay-lunch.php");
+    if (!$admission_no || $amount <= 0 || !$receipt_no) {
+        echo "<script>alert('Invalid input! Missing admission number, amount, or receipt.'); window.location.href='pay-lunch.php';</script>";
         exit();
     }
 
-    $original_amount = $amount;
+    $original_amt = $amount;
 
-    // Get latest week
-    $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? ORDER BY week_number DESC LIMIT 1");
+    // 1. Validate student
+    $stmt = $conn->prepare("SELECT name, class FROM student_records WHERE admission_no = ?");
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $week_data = $result->fetch_assoc();
+    $student = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    if (!$student) {
+        echo "<script>alert('Student not found.'); window.location.href='pay-lunch.php';</script>";
+        exit();
+    }
+    $name = $student['name'];
+    $class = $student['class'];
 
-    $week_number = $week_data ? ($week_data['balance'] == 0 ? $week_data['week_number'] + 1 : $week_data['week_number']) : 1;
-    $valid_days = $week_number == 1 ? $valid_days_first_week : $valid_days_full_week;
-    $total_weekly_fee = $week_number == 1 ? $total_weekly_fee_first_week : $total_weekly_fee_full_week;
+    // 2. Get terms ordered by start ascending
+    $terms_res = $conn->query("SELECT id, term_number, year, start_date, end_date FROM terms ORDER BY start_date ASC");
+    if (!$terms_res || $terms_res->num_rows === 0) {
+        echo "<script>alert('No terms available.'); window.location.href='pay-lunch.php';</script>";
+        exit();
+    }
 
-    // Insert new week if needed
-    if (!$week_data || $week_data['balance'] == 0) {
-        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number, total_amount, payment_type) VALUES (?, 0, ?, ?, ?, ?)");
-        $stmt->bind_param("sdiss", $admission_no, $total_weekly_fee, $week_number, $total_weekly_fee, $payment_type);
+    // 3. Helper to insert a week row
+    function insertWeek($conn, $admission_no, $term_id, $week_num, $payment_type, $daily_fee) {
+        $total_weekly = $daily_fee * 5;
+        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, term_id, total_paid, balance, week_number, total_amount, payment_type, carry_forward)
+            VALUES (?, ?, 0, ?, ?, ?, ?, 0)");
+        $stmt->bind_param("sidiss", $admission_no, $term_id, $total_weekly, $week_num, $total_weekly, $payment_type);
         $stmt->execute();
         $stmt->close();
     }
 
-    // Distribute payment
-    while ($amount > 0) {
-        $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND week_number = ?");
-        $stmt->bind_param("si", $admission_no, $week_number);
+    // 4. Process payments per term, oldest-first
+    while ($amount > 0 && ($term = $terms_res->fetch_assoc())) {
+        $termId = $term['id'];
+
+        // Calculate total term weeks
+        $daysInTerm = (strtotime($term['end_date']) - strtotime($term['start_date'])) / 86400 + 1;
+        $total_weeks = ceil($daysInTerm / 5);
+
+        // Find last paid day by week from lunch_fees
+        $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? ORDER BY week_number DESC LIMIT 1");
+        $stmt->bind_param("si", $admission_no, $termId);
         $stmt->execute();
-        $week_data = $stmt->get_result()->fetch_assoc();
+        $lastWeek = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        $balance = $week_data['balance'];
+        $startWeek = $lastWeek ? ($lastWeek['balance'] == 0 ? $lastWeek['week_number'] + 1 : $lastWeek['week_number']) : 1;
 
-        foreach ($valid_days as $day) {
-            if ($balance <= 0 || $amount <= 0) break;
+        for ($wk = $startWeek; $wk <= $total_weeks && $amount > 0; $wk++) {
+            // Ensure week record exists
+            $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ?");
+            $stmt->bind_param("sii", $admission_no, $termId, $wk);
+            $stmt->execute();
+            $weekData = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
 
-            if ($week_data[$day] < $daily_fee) {
-                $remaining_fee = $daily_fee - $week_data[$day];
-                $pay_today = min($remaining_fee, $amount);
+            if (!$weekData) {
+                insertWeek($conn, $admission_no, $termId, $wk, $payment_type, $daily_fee);
+                $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ?");
+                $stmt->bind_param("sii", $admission_no, $termId, $wk);
+                $stmt->execute();
+                $weekData = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+            }
 
-                $stmt = $conn->prepare("UPDATE lunch_fees SET $day = $day + ?, total_paid = total_paid + ?, balance = balance - ? WHERE admission_no = ? AND week_number = ?");
-                $stmt->bind_param("dddsi", $pay_today, $pay_today, $pay_today, $admission_no, $week_number);
+            foreach ($valid_days as $dayName) {
+                if ($amount <= 0) break;
+
+                // Get day record, check attendance & holiday
+                $stmt = $conn->prepare("
+                    SELECT d.id, d.is_public_holiday,
+                           a.status IS NULL OR a.status = 'Present' AS is_present
+                    FROM days d
+                    LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
+                    LEFT JOIN weeks w ON w.id = d.week_id
+                    WHERE w.term_id = ? AND w.week_number = ? AND d.day_name = ?
+                ");
+                $stmt->bind_param("siis", $admission_no, $termId, $wk, $dayName);
+                $stmt->execute();
+                $dd = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+
+                if (!$dd || $dd['is_public_holiday'] || !$dd['is_present']) {
+                    continue;
+                }
+
+                $dayCol = strtolower($dayName);
+                $paidToday = floatval($weekData[$dayCol]);
+                if ($paidToday >= $daily_fee) continue;
+
+                $topUp = min($daily_fee - $paidToday, $amount);
+
+                $stmt = $conn->prepare("
+                    UPDATE lunch_fees
+                    SET $dayCol = $dayCol + ?, total_paid = total_paid + ?, balance = balance - ?
+                    WHERE id = ?
+                ");
+                $stmt->bind_param("dddi", $topUp, $topUp, $topUp, $weekData['id']);
                 $stmt->execute();
                 $stmt->close();
 
-                $amount -= $pay_today;
-                $balance -= $pay_today;
+                $amount -= $topUp;
+                $weekData[$dayCol] += $topUp;
+                $weekData['balance'] -= $topUp;
             }
         }
 
-        if ($amount > 0) {
-            $week_number++;
-            $valid_days = $valid_days_full_week;
-            $total_weekly_fee = $total_weekly_fee_full_week;
-
-            $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, total_paid, balance, week_number, total_amount, payment_type) VALUES (?, 0, ?, ?, ?, ?)");
-            $stmt->bind_param("sdiss", $admission_no, $total_weekly_fee, $week_number, $total_weekly_fee, $payment_type);
+        // Carry forward if payment still has leftover
+        if ($amount > 0 && $wk > $total_weeks) {
+            $lastWeekNum = min($total_weeks, $startWeek);
+            $stmt = $conn->prepare("UPDATE lunch_fees SET carry_forward = carry_forward + ? WHERE admission_no = ? AND term_id = ? AND week_number = ?");
+            $stmt->bind_param("dsii", $amount, $admission_no, $termId, $lastWeekNum);
             $stmt->execute();
             $stmt->close();
+            $amount = 0;
         }
     }
 
-    // Save transaction
-    $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amount, $payment_type);
+    // 5. Log transaction
+    $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type)
+        VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amt, $payment_type);
     $stmt->execute();
     $stmt->close();
 
-    $_SESSION['statusMessage'] = "<div class='success'>Lunch payment recorded! Receipt: <strong>$receipt_no</strong></div>";
-    header("Location: pay-lunch.php");
+    echo "<script>alert('Payment successful! Receipt #: {$receipt_no}'); window.location.href='pay-lunch.php';</script>";
     exit();
 }
 
