@@ -1,0 +1,6 @@
+[02-Aug-2025 09:52:04 Europe/Berlin] PHP Warning:  mysqli::__construct(): (HY000/2002): No connection could be made because the target machine actively refused it in C:\xampp\htdocs\kayron-student-management-\php\others.php on line 15
+[02-Aug-2025 14:21:50 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
+[02-Aug-2025 14:21:50 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
+[02-Aug-2025 14:21:50 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
+[02-Aug-2025 14:52:52 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
+[02-Aug-2025 14:52:54 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
