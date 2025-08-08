@@ -10,7 +10,7 @@ $message = "";
 $current_date = date('Y-m-d');
 
 // === Fee structure and class order
-$class_order = ['babyclass','intermediate','pp1','pp2','grade1','grade2','grade3','grade4','grade5','grade6'];
+$class_order = ['babyclass', 'intermediate', 'pp1', 'pp2', 'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'];
 $fee_structure = [
     "babyclass" => [4700, 4700, 4700],
     "intermediate" => [4700, 4700, 4700],
@@ -46,7 +46,7 @@ if ($current_term && strtotime($current_term['end_date']) < strtotime($current_d
 }
 
 // === Auto-suggest Week & Day
-$week_days = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
+$week_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 $suggested_week = 1;
 $suggested_day = "Monday";
 
@@ -73,7 +73,6 @@ if ($current_term) {
     $suggested_week = floor($filled_count / 5) + 1;
     $suggested_day = $week_days[$filled_count % 5];
 
-    // If all weeks filled
     if ($suggested_week > $max_weeks && $filled_count % 5 == 0) {
         $message = "⚠ All weeks for Term {$current_term['term_number']} are filled. 
         <a href='week.php?register_new_term=1' style='color:red;font-weight:bold;'>Register New Term</a>.";
@@ -90,29 +89,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $end = $_POST['end_date'];
         $year = date('Y', strtotime($start));
 
-        // Get last term info
         $last_term_res = $conn->query("SELECT * FROM terms ORDER BY year DESC, term_number DESC LIMIT 1");
         $last_term = $last_term_res->fetch_assoc();
 
-        // === Validation for promotion ===
         $promotion_mode = false;
         if ($last_term) {
             $last_term_number = intval($last_term['term_number']);
             $last_term_year = intval($last_term['year']);
 
-            // If last term is 3 and user tries to add term2 or term3 -> reject
             if ($last_term_number === 3 && $term_number !== 1 && $year > $last_term_year) {
                 echo "<script>alert('Unable to register this term. Only Term 1 can be registered after Term 3 for promotion.'); window.location.href='week.php';</script>";
                 exit();
             }
 
-            // Only allow promotion if it's Term1 of a new year after Term3
             if ($last_term_number === 3 && $term_number === 1 && $year > $last_term_year) {
                 $promotion_mode = true;
             }
         }
 
-        // Limit to 3 terms per year
         $stmt_check_terms = $conn->prepare("SELECT COUNT(*) AS total FROM terms WHERE year = ?");
         $stmt_check_terms->bind_param("i", $year);
         $stmt_check_terms->execute();
@@ -120,7 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($res_count['total'] >= 3) {
             $message = "Cannot register more than 3 terms in $year.";
         } else {
-            // Prevent duplicate term number
             $stmt_check = $conn->prepare("SELECT * FROM terms WHERE term_number = ? AND year = ?");
             $stmt_check->bind_param("ii", $term_number, $year);
             $stmt_check->execute();
@@ -133,37 +126,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $new_term_id = $stmt->insert_id;
                     $term_string = "term" . $term_number;
 
-                    // === Update students for new term ===
                     $students = $conn->query("SELECT admission_no, class, term FROM student_records");
                     while ($student = $students->fetch_assoc()) {
                         $admission_no = $student['admission_no'];
                         $class = strtolower($student['class']);
+                        $term_string = "term" . $term_number;
 
-                        // === Promote only if promotion_mode true ===
                         if ($promotion_mode) {
-                            $current_index = array_search($class, $class_order);
-                            if ($current_index !== false && $current_index < count($class_order) - 1) {
-                                $class = $class_order[$current_index + 1]; // promote
+                            if ($class === 'grade6') {
+                                $stmt_get_student = $conn->prepare("SELECT * FROM student_records WHERE admission_no = ?");
+                                $stmt_get_student->bind_param("s", $admission_no);
+                                $stmt_get_student->execute();
+                                $student_data = $stmt_get_student->get_result()->fetch_assoc();
+
+                                if ($student_data) {
+                                    $graduation_date = date('Y-m-d');
+
+                                    $stmt_insert_grad = $conn->prepare("
+                                        INSERT INTO graduated_students (
+                                            admission_no, name, birth_certificate, dob, gender, 
+                                            class_completed, term, religion, guardian_name, phone, 
+                                            student_photo, year_completed, graduation_date
+                                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ");
+                                    $stmt_insert_grad->bind_param(
+                                        "sssssssssssis",
+                                        $student_data['admission_no'],
+                                        $student_data['name'],
+                                        $student_data['birth_certificate'],
+                                        $student_data['dob'],
+                                        $student_data['gender'],
+                                        $class,
+                                        $student_data['term'],
+                                        $student_data['religion'],
+                                        $student_data['guardian_name'],
+                                        $student_data['phone'],
+                                        $student_data['student_photo'],
+                                        $last_term['year'],
+                                        $graduation_date
+                                    );
+                                    $stmt_insert_grad->execute();
+                                }
+
+                                $stmt_delete_records = $conn->prepare("DELETE FROM student_records WHERE admission_no = ?");
+                                $stmt_delete_records->bind_param("s", $admission_no);
+                                $stmt_delete_records->execute();
+
+                                continue;
+                            } else {
+                                $current_index = array_search($class, $class_order);
+                                if ($current_index !== false && $current_index < count($class_order) - 1) {
+                                    $promoted_class = $class_order[$current_index + 1];
+                                    $stmt_update = $conn->prepare("UPDATE student_records SET class = ? WHERE admission_no = ?");
+                                    $stmt_update->bind_param("ss", $promoted_class, $admission_no);
+                                    $stmt_update->execute();
+                                    $class = $promoted_class;
+                                }
                             }
-                            $update_class = $conn->prepare("UPDATE student_records SET class = ? WHERE admission_no = ?");
-                            $update_class->bind_param("ss", $class, $admission_no);
-                            $update_class->execute();
                         }
 
-                        // === Update term ===
                         $is_same_term = ($student['term'] === $term_string);
                         if (!$is_same_term) {
-                            $update = $conn->prepare("UPDATE student_records SET term = ? WHERE admission_no = ?");
-                            $update->bind_param("ss", $term_string, $admission_no);
-                            $update->execute();
+                            $update_term_stmt = $conn->prepare("UPDATE student_records SET term = ? WHERE admission_no = ?");
+                            $update_term_stmt->bind_param("ss", $term_string, $admission_no);
+                            $update_term_stmt->execute();
                         }
 
-                        // === Update school fees ===
                         if (isset($fee_structure[$class])) {
                             $term_fee = $fee_structure[$class][$term_number - 1];
 
                             if ($is_same_term) {
-                                // Same term -> no extra charge
                                 $stmt_update_fee = $conn->prepare("
                                     UPDATE school_fees
                                     SET total_fee = total_fee + 0, balance = balance + 0
@@ -172,7 +204,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt_update_fee->bind_param("s", $admission_no);
                                 $stmt_update_fee->execute();
                             } else {
-                                // New term -> add fee
                                 $stmt_update_fee = $conn->prepare("
                                     UPDATE school_fees
                                     SET total_fee = total_fee + ?, balance = balance + ?
@@ -181,7 +212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt_update_fee->bind_param("iis", $term_fee, $term_fee, $admission_no);
                                 $stmt_update_fee->execute();
 
-                                // If no record exists, insert
                                 if ($stmt_update_fee->affected_rows === 0) {
                                     $stmt_insert_fee = $conn->prepare("
                                         INSERT INTO school_fees (admission_no, class, term, total_fee, amount_paid, balance)
@@ -218,47 +248,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // === Register Day
-    if (isset($_POST['register_day']) && $current_term_id) {
-        $week_number = intval($_POST['week_number']);
-        $selected_day = $_POST['selected_day'];
-        $is_public_holiday = isset($_POST['is_holiday']) ? 1 : 0;
+    if ($current_term && strtotime($current_term['end_date']) < strtotime($current_date)) {
+        $message = "Cannot register days. The term ended on {$current_term['end_date']}.";
+    } else {
+        if (isset($_POST['register_day']) && $current_term_id) {
+            $week_number = intval($_POST['week_number']);
+            $selected_day = $_POST['selected_day'];
+            $is_public_holiday = isset($_POST['is_holiday']) ? 1 : 0;
 
-        // Ensure week exists
-        $stmt_week = $conn->prepare("SELECT id FROM weeks WHERE term_id = ? AND week_number = ?");
-        $stmt_week->bind_param("ii", $current_term_id, $week_number);
-        $stmt_week->execute();
-        $res_week = $stmt_week->get_result();
+            $stmt_week = $conn->prepare("SELECT id FROM weeks WHERE term_id = ? AND week_number = ?");
+            $stmt_week->bind_param("ii", $current_term_id, $week_number);
+            $stmt_week->execute();
+            $res_week = $stmt_week->get_result();
 
-        if ($res_week->num_rows > 0) {
-            $week_id = $res_week->fetch_assoc()['id'];
-        } else {
-            $stmt_insert_week = $conn->prepare("INSERT INTO weeks (term_id, week_number) VALUES (?, ?)");
-            $stmt_insert_week->bind_param("ii", $current_term_id, $week_number);
-            $stmt_insert_week->execute();
-            $week_id = $stmt_insert_week->insert_id;
-        }
-
-        // Insert day
-        $stmt_insert = $conn->prepare("INSERT INTO days (week_id, day_name, is_public_holiday) VALUES (?, ?, ?)");
-        $stmt_insert->bind_param("isi", $week_id, $selected_day, $is_public_holiday);
-        if ($stmt_insert->execute()) {
-            $day_id = $stmt_insert->insert_id;
-
-            // Auto mark all students absent if holiday
-            if ($is_public_holiday == 1) {
-                $students = $conn->query("SELECT admission_no FROM student_records");
-                while ($student = $students->fetch_assoc()) {
-                    $admission_no = $student['admission_no'];
-                    $stmt_att = $conn->prepare("INSERT INTO attendance (admission_no, day_id, status) VALUES (?, ?, 'Absent')");
-                    $stmt_att->bind_param("si", $admission_no, $day_id);
-                    $stmt_att->execute();
-                }
+            if ($res_week->num_rows > 0) {
+                $week_id = $res_week->fetch_assoc()['id'];
+            } else {
+                $stmt_insert_week = $conn->prepare("INSERT INTO weeks (term_id, week_number) VALUES (?, ?)");
+                $stmt_insert_week->bind_param("ii", $current_term_id, $week_number);
+                $stmt_insert_week->execute();
+                $week_id = $stmt_insert_week->insert_id;
             }
 
-            header("Location: week.php");
-            exit;
-        } else {
-            $message = "Failed to register day: " . $conn->error;
+            $stmt_insert = $conn->prepare("INSERT INTO days (week_id, day_name, is_public_holiday) VALUES (?, ?, ?)");
+            $stmt_insert->bind_param("isi", $week_id, $selected_day, $is_public_holiday);
+            if ($stmt_insert->execute()) {
+                $day_id = $stmt_insert->insert_id;
+
+                if ($is_public_holiday == 1) {
+                    $students = $conn->query("SELECT admission_no FROM student_records");
+                    while ($student = $students->fetch_assoc()) {
+                        $admission_no = $student['admission_no'];
+                        $stmt_att = $conn->prepare("INSERT INTO attendance (admission_no, day_id, status) VALUES (?, ?, 'Absent')");
+                        $stmt_att->bind_param("si", $admission_no, $day_id);
+                        $stmt_att->execute();
+                    }
+                }
+
+                header("Location: week.php");
+                exit;
+            } else {
+                $message = "Failed to register day: " . $conn->error;
+            }
         }
     }
 }
