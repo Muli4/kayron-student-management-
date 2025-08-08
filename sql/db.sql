@@ -31,6 +31,22 @@ CREATE TABLE student_records (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE graduated_students (
+    admission_no VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(100),
+    birth_certificate VARCHAR(100),
+    dob DATE,
+    gender VARCHAR(10),
+    class_completed VARCHAR(50),
+    term VARCHAR(20),
+    religion VARCHAR(50),
+    guardian_name VARCHAR(100),
+    phone VARCHAR(20),
+    student_photo VARCHAR(255),
+    year_completed INT,
+    graduation_date DATE
+);
+
 
 CREATE TABLE school_fees(
     admission_no varchar(15) NOT NULL PRIMARY KEY,
