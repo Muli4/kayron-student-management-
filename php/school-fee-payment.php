@@ -1,16 +1,7 @@
 <?php
 session_start();
 
-// Database Connection
-$servername = "localhost";
-$username = "root";
-$password = "";
-$database = "school_database";
-
-$conn = new mysqli($servername, $username, $password, $database);
-if ($conn->connect_error) {
-    die(json_encode(["error" => "Database connection failed!"]));
-}
+include 'db.php'; // Include database connection
 
 // When form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {

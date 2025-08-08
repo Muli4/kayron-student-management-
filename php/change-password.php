@@ -65,6 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Change Password</title>
     <link rel="stylesheet" href="../style/style.css">
+    <link rel="website icon" type="png" href="photos/Logo.jpg">
 </head>
 <body>
     <div class="change-container">

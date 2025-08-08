@@ -60,6 +60,7 @@ if (!empty($start_date) && !empty($end_date)) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Financial Report</title>
     <link rel="stylesheet" href="../style/style.css">
+    <link rel="website icon" type="png" href="photos/Logo.jpg">
 </head>
 <body>
 <div class="heading-all">
@@ -124,53 +125,169 @@ if (!empty($start_date) && !empty($end_date)) {
 </footer>
 
 <style>
-/* Basic Styles */
-.container {
-    flex: 1;
-    width: 80%;
-    margin: 20px auto;
-    font-family: Arial, sans-serif;
+/* === Tracker Container & Layout === */
+.tracker-container { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  width: 100%;
 }
-.container h2{
-    text-align: center;
+
+/* === Tracker Section === */
+.tracker {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f0f4f8;
+  border-radius: 8px;
+  margin-top: 20px;
+  width: 70%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
 }
-form {
-    text-align: center;
-    margin-bottom: 20px;
+.tracker label {
+  font-weight: bold;
 }
-input[type="datetime-local"] {
-    padding: 8px;
-    margin: 5px;
+.tracker select, 
+.tracker input {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 14px;
+  width: 200px;
 }
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
+.tracker button {
+  padding: 7px 15px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
 }
-th, td {
-    padding: 10px;
-    text-align: left;
-    border: 1px solid #ddd;
+.tracker button:hover {
+  background: #218838;
 }
-th {
-    background: #007bff;
-    color: white;
+
+/* === Search Wrapper & Suggestions === */
+.search-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 200px; /* match input width */
+  overflow: visible; /* allow dropdown to escape */
 }
-button {
-    padding: 10px 20px;
-    background: #007bff;
-    color: white;
-    border: none;
-    cursor: pointer;
+
+#suggestions {  
+  position: absolute;
+  top: 100%; /* directly below input */
+  left: 0;
+  width: 100%; /* match input width */
+  background: #fff;
+  border: 1px solid #ccc;
+  border-top: none;
+  border-bottom-left-radius: 5px;
+  border-bottom-right-radius: 5px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  z-index: 99999; /* always on top */
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
-button a {
-    color: white;
-    text-decoration: none;
+
+.suggestion-item { 
+  padding: 6px 10px; 
+  cursor: pointer; 
+  font-size: 14px;
+  color: #333;
 }
-button:hover {
-    background: #0056b3;
+.suggestion-item:hover { 
+  background-color: #f0f0f0; 
+}
+
+/* === Message Box === */
+#message-box {
+  width: 70%;
+  text-align: center;
+  font-size: 1.1em;
+  font-weight: bold;
+  padding: 12px;
+  border-radius: 6px;
+  display: none;
+  margin-top: 15px;
+}
+#message-box .paid {
+  color: #27ae60;
+  background: #e8f8f2;
+  border: 1px solid #27ae60;
+}
+#message-box .unpaid {
+  color: #e74c3c;
+  background: #fdecea;
+  border: 1px solid #e74c3c;
+}
+
+/* === Tracker Results Table === */
+#tracker-results table {
+  border-collapse: collapse; 
+  width: 100%; /* wide table */
+  margin-top: 20px; 
+}
+#tracker-results th, 
+#tracker-results td {
+  border: 1px solid #ccc; 
+  padding: 8px; 
+  text-align: center;
+}
+#tracker-results th {
+  background: #f0f4f8;
+  font-weight: bold;
+}
+
+/* === Payment Status Colors === */
+.paid {
+  color: green;
+  font-weight: bold;
+} 
+.partial {
+  color: orange;
+  font-weight: bold;
+}
+.unpaid {
+  color: red;
+  font-weight: bold;
+}
+
+/* === Current Week/Day Highlight === */
+.current-week {
+  background-color: lightblue;
+}
+.current-day {
+  background-color: #ffeb99;
+  font-weight: bold;
+}
+
+/* === Summary Section === */
+.summary {
+  text-align: center;
+  font-weight: bold;
+  margin-top: 20px;
+  font-size: 1.1em;
+}
+
+/* === Pagination === */
+.pagination {
+  text-align: center;
+  margin-top: 15px;
+}
+.pagination a {
+  margin: 0 10px;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  text-decoration: none;
+  cursor: pointer;
+}
+.pagination a.disabled {
+  color: #999;
+  pointer-events: none;
 }
 </style>
-
-</body>
-</html>

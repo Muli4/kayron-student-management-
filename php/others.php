@@ -1,29 +1,18 @@
 <?php
 session_start();
 error_reporting(E_ALL);
-ini_set('display_errors', 0); // Hide errors from user
+ini_set('display_errors', 1); // Show errors during testing
 ini_set('log_errors', 1);
-ini_set('error_log', 'errors.log'); // Log errors to a file
+ini_set('error_log', __DIR__ . '/errors.log'); // Log errors to file
 
-// Database connection details
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "school_database";
+include 'db.php';
 
-// Connect to database
-$conn = new mysqli($servername, $username, $password, $dbname);
-if ($conn->connect_error) {
-    die("Database connection failed.");
-}
-
-// Check if form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Retrieve and sanitize form inputs
-    $admission_no = trim($_POST['admission_no'] ?? '');
-    $fee_type = strtolower(trim($_POST['fee_type'] ?? ''));
-    $amount = floatval($_POST['amount'] ?? 0);
-    $payment_type = trim($_POST['payment_type'] ?? 'Cash');
+    $admission_no   = trim($_POST['admission_no'] ?? '');
+    $fee_type       = ucfirst(strtolower(trim($_POST['fee_type'] ?? ''))); // Normalize e.g. "Admission"
+    $amount         = floatval($_POST['amount'] ?? 0);
+    $payment_type   = ucfirst(strtolower(trim($_POST['payment_type'] ?? 'Cash')));
     $receipt_number = trim($_POST['receipt_number'] ?? '');
 
     // Validate inputs
@@ -31,13 +20,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         die("Invalid payment data.");
     }
 
-    // Retrieve student name and term
+    // 1️⃣ Retrieve student name and term
     $stmt = $conn->prepare("SELECT name, term FROM student_records WHERE admission_no = ?");
     if (!$stmt) {
-        error_log("MySQL Error (Fetching student): " . $conn->error);
-        die("Error retrieving student details.");
+        die("MySQL Error (Fetching student): " . $conn->error);
     }
-
     $stmt->bind_param("s", $admission_no);
     $stmt->execute();
     $stmt->bind_result($name, $term);
@@ -47,19 +34,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($name)) {
         die("Student record not found.");
     }
-
     if (!$term) {
         $term = "Unknown";
     }
 
-    // Check if admission fee has already been paid
-    if ($fee_type === "admission") {
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM others WHERE admission_no = ? AND LOWER(fee_type) = 'admission'");
+    // 2️⃣ Check if admission fee has already been paid
+    if ($fee_type === "Admission") {
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) 
+            FROM others 
+            WHERE admission_no = ? 
+              AND LOWER(fee_type) = 'admission'
+        ");
         if (!$stmt) {
-            error_log("MySQL Error (Checking admission fee): " . $conn->error);
-            die("Error checking admission fee.");
+            die("MySQL Error (Checking admission fee): " . $conn->error);
         }
-
         $stmt->bind_param("s", $admission_no);
         $stmt->execute();
         $stmt->bind_result($count);
@@ -71,25 +60,55 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // Insert the payment
-    $stmt = $conn->prepare("INSERT INTO others (receipt_number, admission_no, name, term, fee_type, amount, payment_type) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?)");
+    // 3️⃣ Insert into `others` table
+    $stmt = $conn->prepare("
+        INSERT INTO others (receipt_number, admission_no, name, term, fee_type, amount, payment_type) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
     if (!$stmt) {
-        error_log("MySQL Error (Inserting payment): " . $conn->error);
-        die("Error processing payment.");
+        die("MySQL Error (Inserting into others): " . $conn->error);
     }
 
-    $stmt->bind_param("sssssss", $receipt_number, $admission_no, $name, $term, $fee_type, $amount, $payment_type);
+    // sssssds => 5 strings, 1 double, 1 string
+    $stmt->bind_param("sssssds", 
+        $receipt_number, 
+        $admission_no, 
+        $name, 
+        $term, 
+        $fee_type, 
+        $amount, 
+        $payment_type
+    );
 
     if ($stmt->execute()) {
-        echo "Payment successfully recorded!";
-    } else {
-        error_log("MySQL Execution Error: " . $stmt->error);
-        echo "Error saving payment.";
-    }
+        $others_id = $stmt->insert_id; // Get the ID for transaction link
+        $stmt->close();
 
-    $stmt->close();
+        // 4️⃣ Insert into `other_transactions` (payment history)
+        $stmt2 = $conn->prepare("
+            INSERT INTO other_transactions (others_id, amount, payment_type, receipt_number) 
+            VALUES (?, ?, ?, ?)
+        ");
+        if (!$stmt2) {
+            die("MySQL Error (Inserting transaction): " . $conn->error);
+        }
+
+        $stmt2->bind_param("idss", $others_id, $amount, $payment_type, $receipt_number);
+
+        if ($stmt2->execute()) {
+            echo "✅ Payment successfully recorded in both tables!";
+        } else {
+            die("Error saving transaction: " . $stmt2->error);
+        }
+
+        $stmt2->close();
+
+    } else {
+        die("Error saving payment: " . $stmt->error);
+    }
 }
 
 $conn->close();
 ?>
+
+

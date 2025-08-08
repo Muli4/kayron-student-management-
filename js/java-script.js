@@ -35,21 +35,6 @@ window.history.pushState(null, "", window.location.href);
 });
 
 
-// date of birth
-document.addEventListener("DOMContentLoaded", function () {
-    const dobInput = document.getElementById("dob");
-
-    if (!dobInput) {
-        console.error("Date of Birth input not found! Check the ID in your HTML.");
-        return; // Stop execution if element is missing
-    }
-
-    const currentYear = new Date().getFullYear(); // Get the current year
-    const minYear = currentYear - 3; // Calculate the minimum year allowed
-    const maxDob = `${minYear}-01-01`; // Set max date to Jan 1st, 3 years ago
-
-    dobInput.setAttribute("max", maxDob); // Apply restriction
-});
 
 
 // make payments handling

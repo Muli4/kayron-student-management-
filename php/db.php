@@ -1,15 +1,13 @@
 <?php
-// db.php - Database connection file
-$servername = "localhost";
-$username = "root";  // Default XAMPP username
-$password = "";      // Default XAMPP password is empty
-$dbname = "school_database"; // Change to your database name
+$servername = "localhost";  // or the IP address of the MySQL server
+$username = "root";
+$password = "1428";  // your MySQL root password
+$dbname = "school_database";
+$port = 3307;  // ensure this matches the port MySQL is using
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+$conn = new mysqli($servername, $username, $password, $dbname, $port);
 
-// Check connection
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die("Database connection failed: " . $conn->connect_error);
 }
 ?>
