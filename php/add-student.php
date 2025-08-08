@@ -2,17 +2,16 @@
 session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-include 'db.php';
+include 'db.php';  // Your DB connection
 
 // Get current term from terms table
 $current_term = '';
 $term_result = $conn->query("SELECT term_number FROM terms ORDER BY id DESC LIMIT 1");
 if ($term_result && $term_result->num_rows > 0) {
     $row = $term_result->fetch_assoc();
-    $current_term = strtolower($row['term_number']); // 'term1', 'term2', 'term3'
+    $current_term = strtolower($row['term_number']); // e.g. 'term1', 'term2', 'term3'
 }
 
-// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = trim($_POST['name'] ?? '');
     $admission_no = trim($_POST['admission_no'] ?? '');
@@ -22,10 +21,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $class = strtolower($_POST['class'] ?? '');
     $term = $current_term;
     $religion = !empty($_POST['religion']) ? $_POST['religion'] : null;
-    $guardian = trim($_POST['guardian'] ?? '');
+    $guardian = trim($_POST['guardian'] ?? $_POST['gurdian'] ?? '');
     $phone = trim($_POST['phone'] ?? '');
 
-    // Handle student photo
+    // Handle student photo blob
     $student_photo = null;
     if (isset($_FILES['student_photo']) && $_FILES['student_photo']['error'] === 0) {
         $student_photo = file_get_contents($_FILES['student_photo']['tmp_name']);
@@ -45,7 +44,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
     $stmt_check->close();
 
-    // Fee structure and logic
+    // Fee structure
     $fee_structure = [
         "babyclass" => [4700, 4700, 4700],
         "intermediate" => [4700, 4700, 4700],
@@ -59,23 +58,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         "grade6" => [6700, 6700, 6700]
     ];
     $term_index = ["term1" => 0, "term2" => 1, "term3" => 2];
-    $total_fee = $fee_structure[$class][$term_index[$term]] ?? 0;
+    $total_fee = $fee_structure[$class][$term_index[$term] ?? 0] ?? 0;
     $amount_paid = 0;
     $balance = $total_fee;
 
-    // Insert into student_records
+    // Prepare insert statement for student_records
     $stmt = $conn->prepare("INSERT INTO student_records 
         (admission_no, birth_cert, name, dob, gender, student_photo, class, term, religion, guardian, phone) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
+    // Bind parameters including blob with correct types and count
+    $null = NULL; // placeholder for blob
     $stmt->bind_param(
-        "sssssbssssi",
+        "sssssbsssss",
         $admission_no,
         $birth_cert,
         $name,
         $dob,
         $gender,
-        $student_photo,
+        $null,      // for blob
         $class,
         $term,
         $religion,
@@ -83,11 +84,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $phone
     );
 
+    // Send blob data if available
+    if ($student_photo !== null) {
+        $stmt->send_long_data(5, $student_photo);
+    }
+
     if ($stmt->execute()) {
-        // Insert into school_fees table
+        // Insert fee details
         $stmt_fee = $conn->prepare("INSERT INTO school_fees (admission_no, birth_cert, class, term, total_fee, amount_paid, balance) 
                                     VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt_fee->bind_param("sssdddd", $admission_no, $birth_cert, $class, $term, $total_fee, $amount_paid, $balance);
+        $stmt_fee->bind_param("ssssddd", $admission_no, $birth_cert, $class, $term, $total_fee, $amount_paid, $balance);
         $stmt_fee->execute();
         $stmt_fee->close();
 
@@ -101,7 +107,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     exit();
 }
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
