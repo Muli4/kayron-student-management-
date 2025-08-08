@@ -248,14 +248,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // === Register Day
-    if ($current_term && strtotime($current_term['end_date']) < strtotime($current_date)) {
-        $message = "Cannot register days. The term ended on {$current_term['end_date']}.";
-    } else {
-        if (isset($_POST['register_day']) && $current_term_id) {
-            $week_number = intval($_POST['week_number']);
-            $selected_day = $_POST['selected_day'];
-            $is_public_holiday = isset($_POST['is_holiday']) ? 1 : 0;
+    // === Register Day
+    if (isset($_POST['register_day']) && $current_term_id) {
+        $expected_weeks = 13; // You can make this a global config if needed
+        $week_number = intval($_POST['week_number']);
+        $selected_day = $_POST['selected_day'];
+        $is_public_holiday = isset($_POST['is_holiday']) ? 1 : 0;
 
+        // Count existing weeks
+        $stmt_count = $conn->prepare("SELECT COUNT(*) AS week_count FROM weeks WHERE term_id = ?");
+        $stmt_count->bind_param("i", $current_term_id);
+        $stmt_count->execute();
+        $week_count_result = $stmt_count->get_result()->fetch_assoc();
+        $current_week_count = $week_count_result['week_count'] ?? 0;
+
+        if ($current_week_count >= $expected_weeks && !weekExists($conn, $current_term_id, $week_number)) {
+            $message = "Cannot register more than $expected_weeks weeks. Term limit reached.";
+        } else {
+            // Check if the given week exists
             $stmt_week = $conn->prepare("SELECT id FROM weeks WHERE term_id = ? AND week_number = ?");
             $stmt_week->bind_param("ii", $current_term_id, $week_number);
             $stmt_week->execute();
@@ -264,17 +274,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($res_week->num_rows > 0) {
                 $week_id = $res_week->fetch_assoc()['id'];
             } else {
+                // Insert new week
                 $stmt_insert_week = $conn->prepare("INSERT INTO weeks (term_id, week_number) VALUES (?, ?)");
                 $stmt_insert_week->bind_param("ii", $current_term_id, $week_number);
                 $stmt_insert_week->execute();
                 $week_id = $stmt_insert_week->insert_id;
             }
 
+            // Insert day
             $stmt_insert = $conn->prepare("INSERT INTO days (week_id, day_name, is_public_holiday) VALUES (?, ?, ?)");
             $stmt_insert->bind_param("isi", $week_id, $selected_day, $is_public_holiday);
             if ($stmt_insert->execute()) {
                 $day_id = $stmt_insert->insert_id;
 
+                // If it's a public holiday, mark all students as Absent
                 if ($is_public_holiday == 1) {
                     $students = $conn->query("SELECT admission_no FROM student_records");
                     while ($student = $students->fetch_assoc()) {
