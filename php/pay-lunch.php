@@ -19,7 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
-    $receipt_no = 'RCPT-' . strtoupper(uniqid());
     $original_amt = $amount;
 
     // 1. Validate student
@@ -35,12 +34,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $student['name'];
     $class = $student['class'];
 
-    // 2. Get terms ordered by start ascending
+    // 2. Get ALL terms and also determine the current/latest term
     $terms_res = $conn->query("SELECT id, term_number, year, start_date, end_date FROM terms ORDER BY start_date ASC");
     if (!$terms_res || $terms_res->num_rows === 0) {
         echo "<script>alert('No terms available.'); window.location.href='pay-lunch.php';</script>";
         exit();
     }
+
+    // Get the last row for current term
+    $terms_arr = $terms_res->fetch_all(MYSQLI_ASSOC);
+    $current_term = end($terms_arr);  // Last (latest) term
+    $current_term_number = $current_term['term_number'];
+
+    // Generate receipt number using current term
+    $randomDigits = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
+    $receipt_no = "LF-T{$current_term_number}-{$randomDigits}";
+
+    // Reset pointer for looping through terms
+    reset($terms_arr);
 
     // 3. Helper to insert a week row
     function insertWeek($conn, $admission_no, $term_id, $week_num, $payment_type, $daily_fee) {
@@ -52,7 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // 4. Process payments per term, oldest-first
-    while ($amount > 0 && ($term = $terms_res->fetch_assoc())) {
+    foreach ($terms_arr as $term) {
+        if ($amount <= 0) break;
+
         $termId = $term['id'];
 
         // Calculate total term weeks
@@ -139,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 5. Log transaction
+    // 5. Log transaction with generated receipt number
     $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type)
         VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amt, $payment_type);
@@ -152,6 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $conn->close();
 ?>
+
 
 
     <!DOCTYPE html>
