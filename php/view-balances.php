@@ -6,29 +6,13 @@ if (!isset($_SESSION['username'])) {
 }
 include 'db.php';
 
-$daily_fee = 70;
 $predefined_classes = ['babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6'];
 
-// === 1. Get the latest registered week number ===
-$stmt_max_week = $conn->prepare("
-    SELECT MAX(w.week_number) AS max_week
-    FROM weeks w
-    JOIN days d ON d.week_id = w.id
-");
-$stmt_max_week->execute();
-$result = $stmt_max_week->get_result();
-$max_week = ($row = $result->fetch_assoc()) ? (int)$row['max_week'] : 0;
-$stmt_max_week->close();
-
-$week_number = $max_week;
-
-$balance_filter = isset($_GET['balance_filter']) && $_GET['balance_filter'] !== ''
-    ? (float)$_GET['balance_filter']
-    : 0;
-
+// Filters
+$balance_filter = isset($_GET['balance_filter']) && $_GET['balance_filter'] !== '' ? (float)$_GET['balance_filter'] : 0;
 $class_filter = isset($_GET['class_filter']) ? $_GET['class_filter'] : '';
 
-// === 2. Fetch students ===
+// Get students
 $query = "SELECT admission_no, name, class FROM student_records";
 if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
     $query .= " WHERE class = ?";
@@ -37,128 +21,227 @@ if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
 } else {
     $stmt_students = $conn->prepare($query);
 }
-
 $stmt_students->execute();
 $result_students = $stmt_students->get_result();
 
 $students = [];
 
+// Fee constants
+$admission_fee = 1000;
+$activity_fee = 100;
+$exam_fee = 50 * 2; // 2 exams per term = 100
+$interview_fee = 200;
+
+$term_map = ['term1' => 1, 'term2' => 2, 'term3' => 3];
+
+// Get current term info for fee calculations
+$term_res = $conn->query("SELECT id, term_number FROM terms ORDER BY term_number DESC LIMIT 1");
+$current_term = $term_res->fetch_assoc();
+$current_term_id = $current_term['id'] ?? 0;
+$current_term_number = $current_term['term_number'] ?? 'term1';
+$current_term_num = $term_map[$current_term_number] ?? 1;
+
 while ($student = $result_students->fetch_assoc()) {
     $admission_no = $student['admission_no'];
 
-    // === School fee balance ===
+    // School fees balance
     $stmt_school = $conn->prepare("SELECT balance FROM school_fees WHERE admission_no = ?");
     $stmt_school->bind_param("s", $admission_no);
     $stmt_school->execute();
-    $res_school = $stmt_school->get_result();
-    $school_fees_balance = ($row = $res_school->fetch_assoc()) ? (float)$row['balance'] : 0;
+    $school_fees_balance = (float)($stmt_school->get_result()->fetch_assoc()['balance'] ?? 0);
     $stmt_school->close();
 
-    // === Book balance ===
-    $stmt_books = $conn->prepare("SELECT SUM(balance) AS total_balance FROM book_purchases WHERE admission_no = ?");
+    // Book purchases balance
+    $stmt_books = $conn->prepare("SELECT SUM(balance) AS total FROM book_purchases WHERE admission_no = ?");
     $stmt_books->bind_param("s", $admission_no);
     $stmt_books->execute();
-    $res_books = $stmt_books->get_result();
-    $book_balance = ($row = $res_books->fetch_assoc()) ? (float)$row['total_balance'] : 0;
+    $book_balance = (float)($stmt_books->get_result()->fetch_assoc()['total'] ?? 0);
     $stmt_books->close();
 
-    // === Uniform balance ===
-    $stmt_uniform = $conn->prepare("SELECT SUM(balance) AS total_balance FROM uniform_purchases WHERE admission_no = ?");
+    // Uniform purchases balance
+    $stmt_uniform = $conn->prepare("SELECT SUM(balance) AS total FROM uniform_purchases WHERE admission_no = ?");
     $stmt_uniform->bind_param("s", $admission_no);
     $stmt_uniform->execute();
-    $res_uniform = $stmt_uniform->get_result();
-    $uniform_balance = ($row = $res_uniform->fetch_assoc()) ? (float)$row['total_balance'] : 0;
+    $uniform_balance = (float)($stmt_uniform->get_result()->fetch_assoc()['total'] ?? 0);
     $stmt_uniform->close();
 
-    // === Lunch calculation ===
-    $stmt_days = $conn->prepare("
-        SELECT d.id AS day_id, d.is_public_holiday
-        FROM days d
-        JOIN weeks w ON d.week_id = w.id
-        WHERE w.week_number <= ?
-        ORDER BY w.week_number ASC,
-                 FIELD(d.day_name,'Monday','Tuesday','Wednesday','Thursday','Friday') ASC
-    ");
-    $stmt_days->bind_param("i", $week_number);
-    $stmt_days->execute();
-    $result_days = $stmt_days->get_result();
+    // -----------------------
+    // Lunch fees calculation
+    // -----------------------
 
-    $expected_lunch = 0;
-    $has_week_records = false;
+    // 1. Get latest term by term_number descending
+    $term_res2 = $conn->query("SELECT id, term_number FROM terms ORDER BY term_number DESC LIMIT 1");
+    $current_term2 = $term_res2->fetch_assoc();
+    $current_term_id2 = $current_term2['id'] ?? 0;
+    $current_term_number2 = $current_term2['term_number'] ?? 'term1';
 
-    while ($day_row = $result_days->fetch_assoc()) {
-        $has_week_records = true;
-        $day_id = $day_row['day_id'];
-        $is_holiday = (int)$day_row['is_public_holiday'];
+    // 2. Get latest week number for current term
+    $week_res = $conn->prepare("SELECT MAX(week_number) AS max_week FROM weeks WHERE term_id = ?");
+    $week_res->bind_param("i", $current_term_id2);
+    $week_res->execute();
+    $max_week = $week_res->get_result()->fetch_assoc()['max_week'] ?? 0;
+    $week_res->close();
 
-        if ($is_holiday) continue;
+    // 3. Get week id for current term and latest week number
+    $stmt_week = $conn->prepare("SELECT id FROM weeks WHERE term_id = ? AND week_number = ?");
+    $stmt_week->bind_param("ii", $current_term_id2, $max_week);
+    $stmt_week->execute();
+    $week_row = $stmt_week->get_result()->fetch_assoc();
+    $week_id = $week_row['id'] ?? 0;
+    $stmt_week->close();
 
-        $att_stmt = $conn->prepare("SELECT status FROM attendance WHERE admission_no=? AND day_id=?");
-        $att_stmt->bind_param("si", $admission_no, $day_id);
-        $att_stmt->execute();
-        $att_stmt->bind_result($status);
-        $att_stmt->fetch();
-        $att_stmt->close();
-
-        if ($status === 'Absent') continue;
-
-        $expected_lunch += $daily_fee;
-    }
-    $stmt_days->close();
-
-    if (!$has_week_records) {
-        $students[] = [
-            'admission_no'       => $admission_no,
-            'name'               => $student['name'],
-            'school_fees'        => $school_fees_balance,
-            'lunch_fee'          => "No week records",
-            'book_purchases'     => $book_balance,
-            'uniform_purchases'  => $uniform_balance,
-            'total_balance'      => $school_fees_balance + $book_balance + $uniform_balance,
-            'class'              => $student['class']
-        ];
-        continue;
+    // 4. Get days of latest week (ordered)
+    $days_res = [];
+    if ($week_id) {
+        $days_stmt = $conn->prepare("SELECT day_name FROM days WHERE week_id = ? ORDER BY id");
+        $days_stmt->bind_param("i", $week_id);
+        $days_stmt->execute();
+        $days_result = $days_stmt->get_result();
+        while ($d = $days_result->fetch_assoc()) {
+            $days_res[] = $d['day_name'];
+        }
+        $days_stmt->close();
     }
 
-    // === Lunch paid ===
-    $stmt_paid = $conn->prepare("
-        SELECT 
-            SUM(COALESCE(monday,0) + COALESCE(tuesday,0) + COALESCE(wednesday,0) +
-                COALESCE(thursday,0) + COALESCE(friday,0)) AS total_paid
-        FROM lunch_fees
-        WHERE admission_no = ? AND week_number <= ?
+    // 5. Calculate number of days passed this week (assume all days counted)
+    $days_passed = count($days_res);
+
+    // 6. Fee per day
+    $per_day_fee = 70;
+
+    // 7. Calculate expected lunch fee up to current term/week/day:
+    // weeks before current * 5 days/week * fee + days_passed * fee
+    $expected_current_term = ($max_week - 1) * 5 * $per_day_fee + $days_passed * $per_day_fee;
+
+    // 8. Sum balance from previous terms lunch fees
+    $prev_terms_res = $conn->prepare("
+        SELECT SUM(balance) as prev_balance
+        FROM lunch_fees lf
+        JOIN terms t ON lf.term_id = t.id
+        WHERE lf.admission_no = ? AND t.term_number < ?
     ");
-    $stmt_paid->bind_param("si", $admission_no, $week_number);
-    $stmt_paid->execute();
-    $res_paid = $stmt_paid->get_result();
-    $paid_row = $res_paid->fetch_assoc();
-    $stmt_paid->close();
+    $prev_terms_res->bind_param("ss", $admission_no, $current_term_number2);
+    $prev_terms_res->execute();
+    $prev_balance = (float)($prev_terms_res->get_result()->fetch_assoc()['prev_balance'] ?? 0);
+    $prev_terms_res->close();
 
-    $total_paid = (float)($paid_row['total_paid'] ?? 0);
-    $lunch_balance = $expected_lunch - $total_paid;
-    $lunch_display = $lunch_balance <= 0 ? "Paid" : $lunch_balance;
+    // 9. Get lunch fees record for current term
+    $current_term_lunch_res = $conn->prepare("
+        SELECT total_paid, balance FROM lunch_fees WHERE admission_no = ? AND term_id = ?
+    ");
+    $current_term_lunch_res->bind_param("si", $admission_no, $current_term_id2);
+    $current_term_lunch_res->execute();
+    $lunch_row = $current_term_lunch_res->get_result()->fetch_assoc();
+    $current_term_lunch_res->close();
 
-    $school_fees_display = $school_fees_balance <= 0 ? "Paid" : $school_fees_balance;
+    // 10. Calculate current term lunch balance
+    if ($lunch_row) {
+        $current_term_balance = max(0, (float)$lunch_row['balance']);
+    } else {
+        // no payment record => assume full expected lunch fee owed
+        $current_term_balance = $expected_current_term;
+    }
 
-    $total_balance = max(0, $school_fees_balance) + $book_balance + $uniform_balance + max(0, $lunch_balance);
-    $total_display = $total_balance <= 0 ? "Paid" : $total_balance;
+    // 11. Total lunch balance
+    $lunch_balance = max(0, $prev_balance) + $current_term_balance;
 
+    // -----------------------
+    // End lunch fees calculation
+    // -----------------------
+
+    // Get current term name for fee filtering (e.g., 'term1', 'term2', etc.)
+    $term_query = $conn->query("SELECT term_number FROM terms ORDER BY term_number DESC LIMIT 1");
+    $current_term_data = $term_query->fetch_assoc();
+    $current_term_number = $current_term_data['term_number'] ?? 1;
+
+    // Term enum mapping
+    $term_enum = "term{$current_term_number}";
+
+    // === Admission Fee ===
+    $admission_balance = 1000;
+    $admission_stmt = $conn->prepare("SELECT SUM(amount) as total FROM others WHERE admission_no = ? AND fee_type = 'Admission'");
+    $admission_stmt->bind_param("s", $admission_no);
+    $admission_stmt->execute();
+    $admission_paid = (float)($admission_stmt->get_result()->fetch_assoc()['total'] ?? 0);
+    $admission_stmt->close();
+    $admission_display = $admission_paid >= 1000 ? "Paid" : number_format(1000 - $admission_paid, 2);
+
+    // === Interview Fee ===
+    $interview_balance = 200;
+    $interview_stmt = $conn->prepare("SELECT SUM(amount) as total FROM others WHERE admission_no = ? AND fee_type = 'Interview'");
+    $interview_stmt->bind_param("s", $admission_no);
+    $interview_stmt->execute();
+    $interview_paid = (float)($interview_stmt->get_result()->fetch_assoc()['total'] ?? 0);
+    $interview_stmt->close();
+    $interview_display = $interview_paid >= 200 ? "Paid" : number_format(200 - $interview_paid, 2);
+
+    // === Activity Fee (only if current term is term2) ===
+    if ($term_enum === 'term2') {
+        $activity_stmt = $conn->prepare("SELECT SUM(amount) as total FROM others WHERE admission_no = ? AND fee_type = 'Activity' AND term = ?");
+        $activity_stmt->bind_param("ss", $admission_no, $term_enum);
+        $activity_stmt->execute();
+        $activity_paid = (float)($activity_stmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $activity_stmt->close();
+        $activity_display = $activity_paid >= 100 ? "Paid" : number_format(100 - $activity_paid, 2);
+    } else {
+        $activity_display = "N/A";
+    }
+
+    // === Exam Fee (2 exams per term @ 50 each = 100 per term) ===
+    $exam_stmt = $conn->prepare("SELECT SUM(amount) as total FROM others WHERE admission_no = ? AND fee_type = 'Exam' AND term = ?");
+    $exam_stmt->bind_param("ss", $admission_no, $term_enum);
+    $exam_stmt->execute();
+    $exam_paid = (float)($exam_stmt->get_result()->fetch_assoc()['total'] ?? 0);
+    $exam_stmt->close();
+    $exam_display = $exam_paid >= 100 ? "Paid" : number_format(100 - $exam_paid, 2);
+
+    // === Add to total balance ===
+    $admission_balance = $admission_display === "Paid" ? 0 : (float)str_replace(',', '', $admission_display);
+    $interview_balance = $interview_display === "Paid" ? 0 : (float)str_replace(',', '', $interview_display);
+    $activity_balance = $activity_display === "Paid" || $activity_display === "N/A" ? 0 : (float)str_replace(',', '', $activity_display);
+    $exam_balance = $exam_display === "Paid" ? 0 : (float)str_replace(',', '', $exam_display);
+
+    // Format individual balances for display
+    $school_fees_display = $school_fees_balance <= 0 ? "Paid" : number_format($school_fees_balance, 2);
+    $lunch_display = $lunch_balance <= 0 ? "Paid" : number_format($lunch_balance, 2);
+    $admission_display = $admission_balance <= 0 ? "Paid" : number_format($admission_balance, 2);
+    $interview_display = $interview_balance <= 0 ? "Paid" : number_format($interview_balance, 2);
+    $activity_display = $activity_balance <= 0 ? "Paid" : number_format($activity_balance, 2);
+    $exam_display = $exam_balance <= 0 ? "Paid" : number_format($exam_balance, 2);
+
+    // Calculate total balance
+    $total_balance = max(0, $school_fees_balance) + $book_balance + $uniform_balance + $lunch_balance
+                + $admission_balance + $interview_balance + $activity_balance + $exam_balance;
+    $total_display = $total_balance <= 0 ? "Paid" : number_format($total_balance, 2);
+
+    // Add student to the list if balance matches filter
     if ($total_balance >= $balance_filter) {
         $students[] = [
-            'admission_no'       => $admission_no,
-            'name'               => $student['name'],
-            'school_fees'        => $school_fees_display,
-            'lunch_fee'          => $lunch_display,
-            'book_purchases'     => $book_balance,
-            'uniform_purchases'  => $uniform_balance,
-            'total_balance'      => $total_display,
-            'class'              => $student['class']
+            'admission_no' => $admission_no,
+            'name' => $student['name'],
+            'school_fees' => $school_fees_display,
+            'lunch' => $lunch_display,
+            'book_purchases' => number_format($book_balance, 2),
+            'uniform_purchases' => number_format($uniform_balance, 2),
+            'admission' => $admission_display,
+            'activity' => $activity_display,
+            'exam' => $exam_display,
+            'interview' => $interview_display,
+            'total_balance' => $total_display,
+            'class' => $student['class']
         ];
     }
+
+
 }
+
 $stmt_students->close();
 $conn->close();
+
+// Now $students contains all data including fees balances ready for your output display.
+
 ?>
+
 
 
 <!DOCTYPE html>
@@ -242,14 +325,18 @@ $conn->close();
             <table id="balancesTable" border="1">
                 <thead>
                 <tr>
-                    <th>Adm No</th>
+                    <th>Adm</th>
                     <th>Name</th>
                     <th>Class</th>
-                    <th>School Fees</th>
-                    <th>Lunch (W<?= htmlspecialchars($week_number); ?>)</th>
+                    <th>Fees</th>
+                    <th>Lunch</th>
                     <th>Books</th>
                     <th>Uniform</th>
-                    <th>Total Balance</th>
+                    <th>Admission</th>
+                    <th>Activity</th>
+                    <th>Exam</th>
+                    <th>Interview</th>
+                    <th>Balance</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -262,9 +349,14 @@ $conn->close();
                             <td><?= htmlspecialchars($student['name']); ?></td>
                             <td><?= htmlspecialchars($student['class']); ?></td>
                             <td><?= htmlspecialchars($student['school_fees']); ?></td>
-                            <td><?= htmlspecialchars($student['lunch_fee']); ?></td>
+                            <td><?= htmlspecialchars($student['lunch'] ?? 'Paid'); ?></td>
                             <td><?= htmlspecialchars($student['book_purchases']); ?></td>
                             <td><?= htmlspecialchars($student['uniform_purchases']); ?></td>
+                            <td><?= htmlspecialchars($student['admission']) ?></td>
+                            <td><?= htmlspecialchars($student['activity']) ?></td>
+                            <td><?= htmlspecialchars($student['exam']) ?></td>
+                            <td><?= htmlspecialchars($student['interview']) ?></td>
+
                             <td><?= htmlspecialchars($student['total_balance']); ?></td>
                         </tr>
                     <?php endforeach; ?>

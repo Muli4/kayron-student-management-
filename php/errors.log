@@ -4,3 +4,6 @@
 [02-Aug-2025 14:21:50 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
 [02-Aug-2025 14:52:52 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
 [02-Aug-2025 14:52:54 Europe/Berlin] MySQL Execution Error: Data truncated for column 'fee_type' at row 1
+[09-Aug-2025 21:42:01 Europe/Berlin] PHP Notice:  Only variables should be passed by reference in C:\xampp\htdocs\kayron-student-management-\php\others.php on line 60
+[09-Aug-2025 21:45:23 Europe/Berlin] PHP Notice:  Only variables should be passed by reference in C:\xampp\htdocs\kayron-student-management-\php\others.php on line 60
+[09-Aug-2025 21:46:10 Europe/Berlin] PHP Notice:  Only variables should be passed by reference in C:\xampp\htdocs\kayron-student-management-\php\others.php on line 60

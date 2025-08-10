@@ -38,29 +38,68 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $term = "Unknown";
     }
 
-    // 2️⃣ Check if admission fee has already been paid
+    // 2️⃣ Check if admission fee has already been paid and if amount is less than 1000
     if ($fee_type === "Admission") {
         $stmt = $conn->prepare("
-            SELECT COUNT(*) 
+            SELECT id, amount 
             FROM others 
             WHERE admission_no = ? 
               AND LOWER(fee_type) = 'admission'
+            LIMIT 1
         ");
         if (!$stmt) {
             die("MySQL Error (Checking admission fee): " . $conn->error);
         }
         $stmt->bind_param("s", $admission_no);
         $stmt->execute();
-        $stmt->bind_result($count);
+        $stmt->bind_result($existing_id, $existing_amount);
         $stmt->fetch();
         $stmt->close();
 
-        if ($count > 0) {
-            die("Admission fee has already been paid for this student.");
+        if ($existing_amount !== null) {
+            if ($existing_amount < 1000) {
+                // Update the existing amount by adding new amount
+                $new_amount = $existing_amount + $amount;
+                $update_stmt = $conn->prepare("
+                    UPDATE others 
+                    SET amount = ? 
+                    WHERE id = ?
+                ");
+                if (!$update_stmt) {
+                    die("MySQL Error (Updating admission fee): " . $conn->error);
+                }
+                $update_stmt->bind_param("di", $new_amount, $existing_id);
+                if ($update_stmt->execute()) {
+                    $update_stmt->close();
+
+                    // Also insert into other_transactions table for payment history
+                    $insert_transaction = $conn->prepare("
+                        INSERT INTO other_transactions (others_id, amount, payment_type, receipt_number)
+                        VALUES (?, ?, ?, ?)
+                    ");
+                    if (!$insert_transaction) {
+                        die("MySQL Error (Inserting transaction): " . $conn->error);
+                    }
+                    $insert_transaction->bind_param("idss", $existing_id, $amount, $payment_type, $receipt_number);
+                    if ($insert_transaction->execute()) {
+                        echo "✅ Admission fee updated successfully!";
+                    } else {
+                        die("Error saving transaction: " . $insert_transaction->error);
+                    }
+                    $insert_transaction->close();
+
+                    exit; // Stop further insertion, update done
+                } else {
+                    die("Error updating admission fee: " . $update_stmt->error);
+                }
+            } else {
+                // If admission fee >= 1000, block new payment
+                die("Admission fee has already been paid and is 1000 or more.");
+            }
         }
     }
 
-    // 3️⃣ Insert into `others` table
+    // 3️⃣ Insert into `others` table (for all other cases, or new admission fee)
     $stmt = $conn->prepare("
         INSERT INTO others (receipt_number, admission_no, name, term, fee_type, amount, payment_type) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -110,5 +149,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 $conn->close();
 ?>
-
-

@@ -1,293 +1,350 @@
 <?php
-require 'db.php'; // Include database connection
+session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: ../index.php");
+    exit();
+}
 
-// Get start and end date from user input
-$start_date = isset($_GET['start_date']) ? $_GET['start_date'] . " 00:00:00" : '';
-$end_date = isset($_GET['end_date']) ? $_GET['end_date'] . " 23:59:59" : '';
+include 'db.php';
 
-$total_book_payments = 0;
-$total_uniform_payments = 0;
-$total_school_fee_payments = 0;
-$total_lunch_payments = 0;
-$total_others_payments = 0;
-$grand_total = 0;
+$message = $_SESSION['message'] ?? '';
+$start_date = $_SESSION['start_date'] ?? '';
+$end_date = $_SESSION['end_date'] ?? '';
+unset($_SESSION['message']); // Clear message so it shows once
 
-if (!empty($start_date) && !empty($end_date)) {
-    // Fetch payments for book purchases
-    $stmt = $conn->prepare("SELECT SUM(amount_paid) AS total FROM book_purchases WHERE purchase_date BETWEEN ? AND ?");
-    $stmt->bind_param("ss", $start_date, $end_date);
+$results = [
+    'school fees' => 0,
+    'lunch fees' => 0,
+    'others' => 0,
+    'books and uniform' => 0
+];
+$totalPaid = 0;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Process form POST, save to session then redirect
+    $start_date_post = $_POST['start_date'] ?? '';
+    $end_date_post = $_POST['end_date'] ?? '';
+
+    if (!$start_date_post || !$end_date_post) {
+        $_SESSION['message'] = "Please select both start and end dates.";
+        header("Location: ".$_SERVER['PHP_SELF']);
+        exit();
+    } else {
+        $_SESSION['start_date'] = $start_date_post;
+        $_SESSION['end_date'] = $end_date_post;
+        header("Location: ".$_SERVER['PHP_SELF']);
+        exit();
+    }
+}
+
+// If start and end date are set in session, fetch the results
+if ($start_date && $end_date) {
+    // Reformat to YYYY-MM-DD for DB queries
+    $db_start = date('Y-m-d', strtotime($start_date));
+    $db_end = date('Y-m-d', strtotime($end_date));
+
+    // 1. School Fee
+    $stmt = $conn->prepare("SELECT IFNULL(SUM(amount_paid), 0) FROM school_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
+    $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $total_book_payments = $result['total'] ?? 0;
+    $stmt->bind_result($results['school fees']);
+    $stmt->fetch();
+    $stmt->close();
 
-    // Fetch payments for uniform purchases
-    $stmt = $conn->prepare("SELECT SUM(amount_paid) AS total FROM uniform_purchases WHERE purchase_date BETWEEN ? AND ?");
-    $stmt->bind_param("ss", $start_date, $end_date);
+    // 2. Lunch Fee
+    $stmt = $conn->prepare("SELECT IFNULL(SUM(amount_paid), 0) FROM lunch_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
+    $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $total_uniform_payments = $result['total'] ?? 0;
+    $stmt->bind_result($results['lunch fees']);
+    $stmt->fetch();
+    $stmt->close();
 
-    // Fetch payments for school fees
-    $stmt = $conn->prepare("SELECT SUM(amount_paid) AS total FROM school_fee_transactions WHERE payment_date BETWEEN ? AND ?");
-    $stmt->bind_param("ss", $start_date, $end_date);
+    // 3. Other Payments (Completed only)
+    $stmt = $conn->prepare("SELECT IFNULL(SUM(amount), 0) FROM other_transactions WHERE DATE(transaction_date) BETWEEN ? AND ? AND status = 'Completed'");
+    $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $total_school_fee_payments = $result['total'] ?? 0;
+    $stmt->bind_result($results['others']);
+    $stmt->fetch();
+    $stmt->close();
 
-    // Fetch payments for lunch fees
-    $stmt = $conn->prepare("SELECT SUM(amount_paid) AS total FROM lunch_fee_transactions WHERE payment_date BETWEEN ? AND ?");
-    $stmt->bind_param("ss", $start_date, $end_date);
+    // 4. Purchases
+    $stmt = $conn->prepare("SELECT IFNULL(SUM(total_amount_paid), 0) FROM purchase_transactions WHERE DATE(transaction_date) BETWEEN ? AND ?");
+    $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $total_lunch_payments = $result['total'] ?? 0;
+    $stmt->bind_result($results['books and uniform']);
+    $stmt->fetch();
+    $stmt->close();
 
-    // Fetch payments for others
-    $stmt = $conn->prepare("SELECT SUM(amount) AS total FROM others WHERE payment_date BETWEEN ? AND ?");
-    $stmt->bind_param("ss", $start_date, $end_date);
-    $stmt->execute();
-    $result = $stmt->get_result()->fetch_assoc();
-    $total_others_payments = $result['total'] ?? 0;
-
-    // Calculate Grand Total
-    $grand_total = $total_book_payments + $total_uniform_payments + $total_school_fee_payments + $total_lunch_payments + $total_others_payments;
+    $totalPaid = array_sum($results);
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Report</title>
-    <link rel="stylesheet" href="../style/style.css">
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
-</head>
-<body>
-<div class="heading-all">
-    <h2 class="title">Kayron Junior School</h2>
-</div>
-
-<div class="container">
-    <h2>Financial Report</h2>
-
-    <!-- Date selection form -->
-    <form method="GET" action="">
-        <label for="start_date">Start Date:</label>
-        <input type="datetime-local" id="start_date" name="start_date" value="<?= htmlspecialchars(substr($start_date, 0, 16)); ?>" required>
-
-        <label for="end_date">End Date:</label>
-        <input type="datetime-local" id="end_date" name="end_date" value="<?= htmlspecialchars(substr($end_date, 0, 16)); ?>" required>
-
-        <button type="submit">Filter</button>
-    </form>
-
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Category</th>
-                <th>Amount (KES)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Book Purchases</td>
-                <td><?= number_format($total_book_payments, 2); ?></td>
-            </tr>
-            <tr>
-                <td>Uniform Purchases</td>
-                <td><?= number_format($total_uniform_payments, 2); ?></td>
-            </tr>
-            <tr>
-                <td>School Fees</td>
-                <td><?= number_format($total_school_fee_payments, 2); ?></td>
-            </tr>
-            <tr>
-                <td>Lunch Fees</td>
-                <td><?= number_format($total_lunch_payments, 2); ?></td>
-            </tr>
-            <tr>
-                <td>Others</td>
-                <td><?= number_format($total_others_payments, 2); ?></td>
-            </tr>
-            <tr>
-                <th>Total</th>
-                <th><?= number_format($grand_total, 2); ?></th>
-            </tr>
-        </tbody>
-    </table>
-</div>
-
-<div class="button-container">
-    <button type="button" class="back-btn"><a href="./dashboard.php">Back to Dashboard</a></button>
-</div>
-<footer class="footer-dash">
-    <p>&copy; <?= date("Y") ?> Kayron Junior School. All Rights Reserved.</p>
-</footer>
+  <meta charset="UTF-8">
+  <title>Weekly Financial Report</title>
+  <link rel="stylesheet" href="../style/style.css">
+  <link rel="website icon" type="png" href="photos/Logo.jpg">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-/* === Tracker Container & Layout === */
-.tracker-container { 
-  display: flex; 
-  flex-direction: column; 
-  align-items: center; 
-  width: 100%;
-}
+    .weekly-report {
+      font-family: 'Segoe UI', sans-serif;
+      color: #333;
+    }
 
-/* === Tracker Section === */
-.tracker {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 15px;
-  background: #f0f4f8;
-  border-radius: 8px;
-  margin-top: 20px;
-  width: 70%;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-}
-.tracker label {
-  font-weight: bold;
-}
-.tracker select, 
-.tracker input {
-  padding: 6px 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 14px;
-  width: 200px;
-}
-.tracker button {
-  padding: 7px 15px;
-  background: #28a745;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-}
-.tracker button:hover {
-  background: #218838;
-}
+    .weekly-report__container {
+      max-width: 960px;
+      margin: 60px auto;
+      padding: 35px 40px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+    }
 
-/* === Search Wrapper & Suggestions === */
-.search-wrapper {
-  position: relative;
-  display: inline-block;
-  width: 200px; /* match input width */
-  overflow: visible; /* allow dropdown to escape */
-}
+    .weekly-report__title {
+      text-align: center;
+      font-size: 26px;
+      margin-bottom: 30px;
+      color: #004b8d;
+      border-bottom: 2px solid #004b8d;
+      padding-bottom: 10px;
+    }
+    .weekly-report__title i {
+      margin-right: 10px;
+      vertical-align: middle;
+      font-size: 26px;
+      color: #004b8d;
+    }
 
-#suggestions {  
-  position: absolute;
-  top: 100%; /* directly below input */
-  left: 0;
-  width: 100%; /* match input width */
-  background: #fff;
-  border: 1px solid #ccc;
-  border-top: none;
-  border-bottom-left-radius: 5px;
-  border-bottom-right-radius: 5px;
-  max-height: 200px;
-  overflow-y: auto;
-  display: none;
-  z-index: 99999; /* always on top */
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
+    .weekly-report__form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
 
-.suggestion-item { 
-  padding: 6px 10px; 
-  cursor: pointer; 
-  font-size: 14px;
-  color: #333;
-}
-.suggestion-item:hover { 
-  background-color: #f0f0f0; 
-}
+    .weekly-report__form label {
+      font-weight: 600;
+      font-size: 15px;
+    }
 
-/* === Message Box === */
-#message-box {
-  width: 70%;
-  text-align: center;
-  font-size: 1.1em;
-  font-weight: bold;
-  padding: 12px;
-  border-radius: 6px;
-  display: none;
-  margin-top: 15px;
-}
-#message-box .paid {
-  color: #27ae60;
-  background: #e8f8f2;
-  border: 1px solid #27ae60;
-}
-#message-box .unpaid {
-  color: #e74c3c;
-  background: #fdecea;
-  border: 1px solid #e74c3c;
-}
+    .weekly-report__form input[type="date"] {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      min-width: 150px;
+    }
 
-/* === Tracker Results Table === */
-#tracker-results table {
-  border-collapse: collapse; 
-  width: 100%; /* wide table */
-  margin-top: 20px; 
-}
-#tracker-results th, 
-#tracker-results td {
-  border: 1px solid #ccc; 
-  padding: 8px; 
-  text-align: center;
-}
-#tracker-results th {
-  background: #f0f4f8;
-  font-weight: bold;
-}
+    .weekly-report__form button {
+      padding: 10px 18px;
+      background-color: #004b8d;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
 
-/* === Payment Status Colors === */
-.paid {
-  color: green;
-  font-weight: bold;
-} 
-.partial {
-  color: orange;
-  font-weight: bold;
-}
-.unpaid {
-  color: red;
-  font-weight: bold;
-}
+    .weekly-report__form button:hover {
+      background-color: #00345f;
+    }
 
-/* === Current Week/Day Highlight === */
-.current-week {
-  background-color: lightblue;
-}
-.current-day {
-  background-color: #ffeb99;
-  font-weight: bold;
-}
+    .weekly-report__table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
 
-/* === Summary Section === */
-.summary {
-  text-align: center;
-  font-weight: bold;
-  margin-top: 20px;
-  font-size: 1.1em;
-}
+    .weekly-report__table th,
+    .weekly-report__table td {
+      border: 1px solid #ddd;
+      padding: 14px;
+      text-align: center;
+      font-size: 15px;
+    }
 
-/* === Pagination === */
-.pagination {
-  text-align: center;
-  margin-top: 15px;
-}
-.pagination a {
-  margin: 0 10px;
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  text-decoration: none;
-  cursor: pointer;
-}
-.pagination a.disabled {
-  color: #999;
-  pointer-events: none;
-}
-</style>
+    .weekly-report__table th {
+      background-color: #004b8d;
+      color: white;
+      text-transform: capitalize;
+    }
+
+    .weekly-report__table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    .weekly-report__table tr:last-child {
+      font-weight: bold;
+      background-color: #e6f0fa;
+    }
+
+    .weekly-report__message {
+      color: red;
+      text-align: center;
+      font-size: 15px;
+      margin-top: 10px;
+    }
+
+    .weekly-report__summary {
+      text-align: center;
+      color: #004b8d;
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    @media (max-width: 600px) {
+      .weekly-report__form {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .weekly-report__form label,
+      .weekly-report__form input,
+      .weekly-report__form button {
+        width: 100%;
+      }
+    }
+
+    /* Print styles */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+
+      .printable-area,
+      .printable-area * {
+        visibility: visible;
+      }
+
+      .printable-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 90%;
+        font-family: 'Segoe UI', sans-serif;
+        color: black;
+        background: white;
+        padding: 20px;
+      }
+
+      .printable-area table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+
+      .printable-area table,
+      .printable-area th,
+      .printable-area td {
+        border: 1px solid black !important;
+        color: black !important;
+        background: white !important;
+      }
+
+      .printable-area th {
+        background: #eee !important;
+        font-weight: bold;
+      }
+
+      .printable-area td,
+      .printable-area th {
+        padding: 8px;
+        text-align: center;
+      }
+    }
+  </style>
+
+  <script>
+    function printReport() {
+      const summary = document.querySelector('.weekly-report__summary');
+      const table = document.querySelector('.weekly-report__table');
+
+      if (!summary || !table) {
+        alert("No report available to print.");
+        return;
+      }
+
+      const printContainer = document.createElement('div');
+      printContainer.classList.add('printable-area');
+      printContainer.appendChild(summary.cloneNode(true));
+      printContainer.appendChild(table.cloneNode(true));
+
+      const originalBody = document.body.innerHTML;
+      document.body.innerHTML = '';
+      document.body.appendChild(printContainer);
+
+      window.print();
+
+      document.body.innerHTML = originalBody;
+      window.location.reload();
+    }
+  </script>
+</head>
+<body>
+
+<?php include '../includes/header.php'; ?>
+
+<div class="dashboard-container">
+  <?php include '../includes/sidebar.php'; ?>
+
+  <main class="content weekly-report">
+    <div class="weekly-report__container">
+      <h1 class="weekly-report__title"><i class='bx bx-bar-chart-alt-2'></i>Weekly Financial Report</h1>
+
+      <form method="post" class="weekly-report__form" action="<?= htmlspecialchars($_SERVER['PHP_SELF']); ?>">
+        <label>Start Date:
+          <input type="date" name="start_date" required value="<?= htmlspecialchars($start_date) ?>">
+        </label>
+        <label>End Date:
+          <input type="date" name="end_date" required value="<?= htmlspecialchars($end_date) ?>">
+        </label>
+        <button type="submit">Generate Report</button>
+        <button type="button" onclick="printReport()">Print Report</button>
+      </form>
+
+      <?php if ($message): ?>
+        <div class="weekly-report__message"><?= htmlspecialchars($message) ?></div>
+      <?php endif; ?>
+
+      <?php if ($start_date && $end_date && !$message): ?>
+        <?php
+          $formatted_start = date('d/m/Y', strtotime($start_date));
+          $formatted_end = date('d/m/Y', strtotime($end_date));
+        ?>
+
+        <h3 class="weekly-report__summary">Payments from <?= $formatted_start ?> to <?= $formatted_end ?>:</h3>
+
+        <table class="weekly-report__table">
+          <tr>
+            <th>school fees</th>
+            <th>lunch fees</th>
+            <th>others</th>
+            <th>books and uniform</th>
+          </tr>
+          <tr>
+            <td><?= number_format($results['school fees'], 2) ?></td>
+            <td><?= number_format($results['lunch fees'], 2) ?></td>
+            <td><?= number_format($results['others'], 2) ?></td>
+            <td><?= number_format($results['books and uniform'], 2) ?></td>
+          </tr>
+          <tr>
+            <td colspan="3" style="text-align:right;">Total:</td>
+            <td><?= number_format($totalPaid, 2) ?></td>
+          </tr>
+        </table>
+      <?php endif; ?>
+    </div>
+  </main>
+</div>
+
+<?php include '../includes/footer.php'; ?>
+
+</body>
+</html>

@@ -8,20 +8,33 @@ if (!isset($_POST['query'])) {
 }
 
 $query = trim($_POST['query']);
-$stmt = $conn->prepare("
-    SELECT admission_no, name, class 
-    FROM student_records 
-    WHERE name LIKE CONCAT('%', ?, '%') 
-       OR admission_no LIKE CONCAT('%', ?, '%') 
+
+$sql = "
+    (
+        SELECT admission_no, name, class AS class
+        FROM student_records
+        WHERE name LIKE CONCAT('%', ?, '%')
+           OR admission_no LIKE CONCAT('%', ?, '%')
+    )
+    UNION
+    (
+        SELECT admission_no, name, class_completed AS class
+        FROM graduated_students
+        WHERE name LIKE CONCAT('%', ?, '%')
+           OR admission_no LIKE CONCAT('%', ?, '%')
+    )
     LIMIT 10
-");
+";
+
+$stmt = $conn->prepare($sql);
 
 if (!$stmt) {
-    echo json_encode([]);
+    echo json_encode(['error' => 'SQL preparation failed']);
     exit;
 }
 
-$stmt->bind_param("ss", $query, $query);
+// Bind 4 parameters: 2 for student_records, 2 for graduated_students
+$stmt->bind_param("ssss", $query, $query, $query, $query);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -33,5 +46,6 @@ while ($row = $result->fetch_assoc()) {
         'class' => $row['class']
     ];
 }
+
 echo json_encode($suggestions);
 ?>

@@ -1,4 +1,9 @@
 <?php
+session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: ../index.php");
+    exit();
+}
 include 'db.php'; // Include database connection
 
 $classes = ['babyclass', 'intermediate', 'PP1', 'PP2', 'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'];
@@ -99,10 +104,218 @@ $result = $stmt->get_result();
 <head>
     <meta charset="UTF-8">
     <title>Manage Students</title>
-    <link rel="stylesheet" href="../style/style.css">
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
+    <link rel="stylesheet" href="../style/style-sheet.css">
+        <link rel="website icon" type="png" href="../images/school-logo.jpg">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+    /* ===== Manage Students Page Styles ===== */
+
+.manage-container {
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    max-width: 1200px;
+    margin: 0 auto 2rem auto;
+}
+
+/* Centered page title with icon */
+.manage-container h2 {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #1cc88a;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+.manage-container h2::before {
+    content: '\f234'; /* boxicons user icon Unicode */
+    font-family: 'boxicons' !important;
+    font-weight: 900;
+    color: #4e73df;
+    font-size: 2rem;
+}
+
+/* Filter dropdown */
+#class-filter {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    border: 1.8px solid #4e73df;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+    cursor: pointer;
+}
+#class-filter:focus {
+    border-color: #1cc88a;
+}
+
+/* Styled table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 1rem;
+}
+table thead tr {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    color: white;
+}
+table th, table td {
+    padding: 0.75rem 1rem;
+    border: 1px solid #ddd;
+    text-align: left;
+    vertical-align: middle;
+}
+table tbody tr:hover {
+    background-color: #f0f9ff;
+}
+
+/* Buttons inside table */
+.edit-btn, .delete-btn {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    color: white;
+    border: none;
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    margin-right: 0.4rem;
+}
+.edit-btn:hover {
+    background: linear-gradient(135deg, #1cc88a, #4e73df);
+}
+.delete-btn {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+.delete-btn:hover {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+}
+
+/* Modal styles */
+.modal {
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+.modal-content {
+    background: #fff;
+    border-radius: 10px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 600px;
+    position: relative;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Close button */
+.close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    font-size: 1.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: #999;
+    transition: color 0.3s ease;
+}
+.close:hover {
+    color: #333;
+}
+
+/* Modal form labels with icon */
+#edit-form label {
+    font-weight: 600;
+    color: #1cc88a;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+}
+
+/* Add icons to labels */
+#edit-form label:nth-of-type(1)::before { content: '\f234'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Admission No (disabled) */
+#edit-form label:nth-of-type(2)::before { content: '\f24d'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Birth Certificate */
+#edit-form label:nth-of-type(3)::before { content: '\f234'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Name */
+#edit-form label:nth-of-type(4)::before { content: '\f073'; font-family: 'boxicons'; margin-right: 0.3rem; } /* DOB */
+#edit-form label:nth-of-type(5)::before { content: '\f222'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Gender */
+#edit-form label:nth-of-type(6)::before { content: '\f4d8'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Class */
+#edit-form label:nth-of-type(7)::before { content: '\f073'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Term */
+#edit-form label:nth-of-type(8)::before { content: '\f51e'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Religion */
+#edit-form label:nth-of-type(9)::before { content: '\f4d9'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Guardian */
+#edit-form label:nth-of-type(10)::before { content: '\f2b6'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Phone */
+
+/* Inputs and selects in modal */
+#edit-form input[type="text"],
+#edit-form input[type="date"],
+#edit-form select {
+    width: 100%;
+    padding: 0.5rem 0.8rem;
+    margin-bottom: 1rem;
+    border: 1.8px solid #4e73df;
+    border-radius: 6px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+#edit-form input[type="text"]:focus,
+#edit-form input[type="date"]:focus,
+#edit-form select:focus {
+    border-color: #1cc88a;
+}
+
+/* Submit button in modal */
+#edit-form button[type="submit"] {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    color: white;
+    border: none;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: block;
+    margin: 0 auto;
+    transition: background 0.3s ease;
+}
+#edit-form button[type="submit"]:hover {
+    background: linear-gradient(135deg, #1cc88a, #4e73df);
+}
+
+@media (max-width: 768px) {
+  #sidebar {
+    display: none !important;  /* Hide sidebar */
+  }
+
+  main.content {
+    margin-left: 0 !important; /* Remove sidebar space */
+    width: 100% !important;    /* Take full width */
+    padding: 1rem;             /* Optional: add some padding */
+  }
+
+  .dashboard-container {
+    display: block; /* remove any flex to stack elements */
+  }
+}
+
+</style>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
@@ -111,7 +324,8 @@ $result = $stmt->get_result();
         <?php include '../includes/sidebar.php'; ?>
         <main class="content">
             <div class="manage-container">
-    <h2>Manage Students</h2>
+    <h2><i class='bx bxs-user-account'></i> Manage Students</h2>
+
 
     <label for="class-filter">Filter by Class:</label>
     <select id="class-filter">
@@ -212,8 +426,6 @@ $result = $stmt->get_result();
 </div>
 
     <?php include '../includes/footer.php'; ?>
-
-
 <script>
 $(document).ready(function () {
     // Filter by class
@@ -298,24 +510,72 @@ $(document).ready(function () {
         });
     });
 });
-</script>
 
-<!-- Real-time clock script -->
-<script>
 document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) {
+        if (clockElement) { 
             const now = new Date();
             const timeString = now.toLocaleTimeString();
             clockElement.textContent = timeString;
         }
     }
+    updateClock(); 
+    setInterval(updateClock, 1000);
 
-    updateClock(); // Initial call
-    setInterval(updateClock, 1000); // Update every second
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // silent logout
+            window.location.href = 'logout.php';  // Change this to your actual logout URL
+        }, 300000); // 5 minutes
+    }
+
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    resetLogoutTimer();
 });
 </script>
+
 
 </body>
 </html>

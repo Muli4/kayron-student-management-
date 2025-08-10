@@ -97,9 +97,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt_fee->execute();
         $stmt_fee->close();
 
-        $_SESSION['message'] = "<div class='success-message'>Student and fee details added successfully!</div>";
+        $_SESSION['message'] = "<div class='add-success-message'>Student and fee details added successfully!</div>";
     } else {
-        $_SESSION['message'] = "<div class='error-message'>Error adding student: " . $stmt->error . "</div>";
+        $_SESSION['message'] = "<div class='add-error-message'>Error adding student: " . $stmt->error . "</div>";
     }
 
     $stmt->close();
@@ -114,9 +114,146 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <title>Add Student</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../style/style.css">
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+<style>
+    /* ===== Add Student Form Container ===== */
+.add-student {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Each form group */
+.form-group {
+    flex: 1 1 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Labels with icon */
+.form-group label {
+    font-weight: 600;
+    color: #1cc88a;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+}
+
+/* Inputs and selects */
+.form-group input[type="text"],
+.form-group input[type="date"],
+.form-group input[type="file"],
+.form-group select {
+    padding: 0.5rem 0.8rem;
+    border: 1.8px solid #4e73df;
+    border-radius: 6px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="date"]:focus,
+.form-group input[type="file"]:focus,
+.form-group select:focus {
+    border-color: #1cc88a;
+}
+
+/* Button container */
+.button-container {
+    width: 100%;
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;  /* Center the button */
+}
+
+/* Submit button */
+.add-student-btn {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    color: white;
+    border: none;
+    padding: 0.7rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.3s ease;
+}
+
+.add-student-btn:hover {
+    background: linear-gradient(135deg, #1cc88a, #4e73df);
+}
+
+/* Center page title with icon */
+.page-title {
+    display: flex;
+    justify-content: center; /* center horizontally */
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #1cc88a;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.page-title i {
+    font-size: 2rem;
+    color: #4e73df;
+}
+.add-success-message {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1.5px solid #c3e6cb;
+    padding: 10px 15px;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.add-error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1.5px solid #f5c6cb;
+    padding: 10px 15px;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+@media (max-width: 600px) {
+    .add-student {
+        flex-direction: column;
+        max-width: 100%;       /* Ensure container doesn't overflow */
+        box-sizing: border-box; /* Include padding in width */
+    }
+    .form-group {
+        flex: 1 1 100%;
+        width: 100%;           /* Make sure form groups take full width */
+        box-sizing: border-box;
+    }
+    .form-group input[type="text"],
+    .form-group input[type="date"],
+    .form-group input[type="file"],
+    .form-group select {
+        width: 100%;           /* Inputs fill their container */
+        box-sizing: border-box;
+    }
+}
+</style>
 </head>
 <body>
 <?php include '../includes/header.php'; ?>
@@ -129,6 +266,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             unset($_SESSION['message']);
         }
         ?>
+            <h2 class="page-title"><i class='bx bxs-user-plus'></i> Add Student</h2>
 
         <form method="POST" enctype="multipart/form-data">
             <div class="add-student">
@@ -221,16 +359,72 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <?php include '../includes/footer.php'; ?>
 
 <script>
-    // Set default DOB to today
-    document.addEventListener("DOMContentLoaded", () => {
-        const dobInput = document.getElementById('dob');
-        if (dobInput) {
-            const today = new Date().toISOString().split('T')[0];
-            dobInput.value = today;
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
         }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
     });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 30 seconds
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
+});
 </script>
 
-<script src="../js/java-script.js" defer></script>
 </body>
 </html>

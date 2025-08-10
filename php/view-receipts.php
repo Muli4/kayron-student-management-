@@ -12,7 +12,17 @@ if ($student_name !== '') {
         UNION
         SELECT receipt_number, payment_date, 'School fees', amount_paid, name, admission_no, payment_type FROM school_fee_transactions WHERE name LIKE '$likeName'
         UNION
-        SELECT receipt_number, payment_date, fee_type, amount, name, admission_no, payment_type FROM others WHERE name LIKE '$likeName'
+        SELECT 
+            ot.receipt_number, 
+            ot.transaction_date AS date, 
+            o.fee_type AS category, 
+            ot.amount, 
+            o.name, 
+            o.admission_no, 
+            ot.payment_type
+        FROM other_transactions ot
+        JOIN others o ON ot.others_id = o.id
+        WHERE o.name LIKE '$likeName'
         UNION
         SELECT receipt_number, purchase_date, 'Book Purchase', amount_paid, name, admission_no, payment_type FROM book_purchases WHERE name LIKE '$likeName'
         UNION
@@ -34,14 +44,18 @@ if ($student_name !== '') {
                 'total' => 0
             ];
         }
+        // Use 'amount' if set, else fallback to 'amount_paid'
+        $amount = isset($row['amount']) ? $row['amount'] : $row['amount_paid'];
+
         $groupedReceipts[$rn]['items'][] = [
             'category' => $row['category'],
-            'amount' => $row['amount_paid']
+            'amount' => $amount
         ];
-        $groupedReceipts[$rn]['total'] += $row['amount_paid'];
+        $groupedReceipts[$rn]['total'] += $amount;
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">

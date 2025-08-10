@@ -174,7 +174,7 @@ if (isset($_GET['ajax'])) {
 
     $output .= "<table class='lunch-table'>
             <tr>
-                <th>#</th>
+                <th></th>
                 <th>Week</th>
                 <th>Monday</th>
                 <th>Tuesday</th>
@@ -283,238 +283,315 @@ if (isset($_GET['ajax'])) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="../style/style.css">
     <link rel="website icon" type="png" href="photos/Logo.jpg">
-<style>
-/* === Tracker Container & Layout === */
-.tracker-container { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    width: 100%;
+    <style>
+        /* Tracker Title */
+.tracker-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 20px;
+    text-align: center;
 }
 
-/* === Tracker Section === */
+/* Tracker Container */
+.tracker-container {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
+    max-width: 900px;
+    margin: 0 auto 40px auto;
+}
+
+/* Tracker Form */
 .tracker {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     gap: 15px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    margin-top: 20px;
-    width: 70%;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    align-items: center;
+    margin-bottom: 25px;
 }
-.tracker label { font-weight: bold; }
-.tracker select, 
-.tracker input {
-    padding: 7px 12px;
-    border: 1px solid #ced4da;
+
+.tracker label {
+    flex: 0 0 100px;
+    font-weight: 600;
+    color: #555;
+}
+
+.tracker select,
+.tracker input[type="text"] {
+    flex: 1 1 200px;
+    padding: 8px 12px;
+    border: 1.8px solid #ccc;
     border-radius: 5px;
-    font-size: 14px;
-    width: 200px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
 }
-.tracker button {
-    padding: 8px 16px;
-    background: #007bff;
+
+.tracker select:focus,
+.tracker input[type="text"]:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+/* Search Wrapper and Suggestions */
+.search-wrapper {
+    position: relative;
+    flex: 1 1 300px;
+}
+
+#suggestions {
+    position: absolute;
+    top: 105%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1.8px solid #ccc;
+    border-top: none;
+    max-height: 180px;
+    overflow-y: auto;
+    border-radius: 0 0 5px 5px;
+    z-index: 999;
+    display: none;
+}
+
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:hover {
+    background-color: #f0f8ff;
+}
+
+/* Pay Button */
+#pay-btn {
+    padding: 10px 25px;
+    background-color: #007bff;
     color: white;
+    font-weight: 600;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    font-weight: bold;
-    transition: background 0.2s;
+    flex: 0 0 auto;
+    transition: background-color 0.3s ease;
 }
-.tracker button:hover { background: #0069d9; }
 
-/* === Search Wrapper & Suggestions === */
-.search-wrapper {
-    position: relative;
-    display: inline-block;
-    width: 200px;
+#pay-btn:hover {
+    background-color: #0056b3;
 }
-#suggestions {  
-    position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-top: none;
-    border-radius: 0 0 5px 5px;
-    max-height: 200px;
-    overflow-y: auto;
-    display: none;
-    z-index: 99999;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-.suggestion-item { 
-    padding: 8px 12px; 
-    cursor: pointer; 
-    font-size: 14px;
-    color: #333;
-}
-.suggestion-item:hover { background-color: #f1f1f1; }
 
-/* === Message Box === */
-#message-box {
-    width: 70%;
-    text-align: center;
-    font-size: 1.1em;
-    font-weight: bold;
-    padding: 12px;
+/* Message Box */
+#message-box div {
+    padding: 12px 15px;
+    margin-bottom: 20px;
     border-radius: 6px;
-    display: none;
-    margin-top: 15px;
-}
-#message-box .paid {
-    color: #28a745;
-    background: #eafaf1;
-    border: 1px solid #28a745;
-}
-#message-box .unpaid {
-    color: #dc3545;
-    background: #fdecea;
-    border: 1px solid #dc3545;
+    font-weight: 600;
 }
 
-/* === Tracker Results Table === */
-#tracker-results table, 
-.lunch-table {
-    border-collapse: collapse; 
-    width: 100%;
-    margin-top: 20px;
-    font-size: 14px;
+.summary.unpaid {
+    background-color: #ffe6e6;
+    color: #cc0000;
+    border: 1.5px solid #cc0000;
 }
-#tracker-results th, #tracker-results td,
-.lunch-table th, .lunch-table td {
-    border: 1px solid #dee2e6; 
-    padding: 10px; 
+
+.summary.paid {
+    background-color: #e6ffe6;
+    color: #008000;
+    border: 1.5px solid #008000;
+}
+
+/* Lunch Table */
+.lunch-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.lunch-table th,
+.lunch-table td {
+    border: 1.5px solid #ddd;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.lunch-table th {
+    background-color: #f7f7f7;
+    font-weight: 700;
+    color: #444;
+}
+
+.lunch-table tr.highlight-week {
+    background-color: #fff8dc; /* light yellow */
+}
+
+.lunch-table td.highlight-day {
+    background-color: #f0e68c; /* khaki */
+}
+
+/* Paid / Partial / Unpaid cells */
+.paid {
+    color: #155724;
+    font-weight: 700;
+}
+
+.partial {
+    color: #856404;
+    font-weight: 700;
+}
+
+.unpaid {
+    color: #721c24;
+    font-weight: 700;
+}
+
+/* Totals and Carry Rows */
+.totals-row td {
+    font-weight: 700;
+    background-color: #e2e3e5;
+}
+
+.carry-row td {
+    font-style: italic;
+    color: #666;
+    background-color: #f9f9f9;
+}
+
+/* Pagination */
+.pagination {
+    margin-top: 20px;
     text-align: center;
 }
-#tracker-results th,
-.lunch-table th {
-    background: #f1f3f5;
-    font-weight: bold;
-}
 
-/* === Payment Status Colors === */
-.paid { 
-    color: #155724; 
-    font-weight: bold; 
-}
-.partial { 
-    color: #856404; 
-    font-weight: bold; 
-}
-.unpaid { 
-    color: #721c24; 
-    font-weight: bold; 
-}
-
-/* === Highlight for Current/Last Recorded Week & Day === */
-.highlight-week {
-    background: #d0e6ff !important; /* More saturated blue tint */
-    font-weight: 600;
-    border-left: 4px solid #007bff;
-}
-
-.highlight-day {
-    background: #007bff !important;
-    color: white !important;
-    font-weight: bold;
-    box-shadow: inset 0 0 0 2px #0056b3;
-}
-
-/* === Summary & Totals === */
-.summary { 
-    text-align: center; 
-    font-weight: bold; 
-    margin-top: 20px; 
-    font-size: 1.1em;
-}
-.totals-row { 
-    font-weight: bold; 
-    background: #f1f3f5; 
-}
-.carry-row { 
-    font-weight: bold; 
-    background: #f9f9f9; 
-}
-
-/* === Pagination === */
-.pagination { 
-    text-align: center; 
-    margin-top: 15px; 
-}
-.pagination a { 
-    margin: 0 10px; 
-    padding: 6px 12px; 
-    border: 1px solid #ccc; 
-    text-decoration: none; 
+.pagination a {
+    display: inline-block;
+    margin: 0 8px;
+    padding: 8px 14px;
+    background-color: #007bff;
+    color: white;
+    border-radius: 5px;
     cursor: pointer;
-    color: #007bff;
-    font-weight: bold;
-    border-radius: 4px;
-}
-.pagination a:hover {
-    background-color: #e9ecef;
-}
-.pagination a.disabled { 
-    color: #999; 
-    pointer-events: none; 
-    background-color: #f8f9fa; 
+    text-decoration: none;
+    font-weight: 600;
+    transition: background-color 0.3s ease;
 }
 
-/* === Modal Styling === */
+.pagination a.disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagination a:hover:not(.disabled) {
+    background-color: #0056b3;
+}
+
+/* Modal */
 .modal {
-    display: none;
+    display: none; /* Hidden by default */
     position: fixed;
-    z-index: 1001;
-    left: 0; top: 0;
-    width: 100%; height: 100%;
+    z-index: 1050;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
     overflow: auto;
     background-color: rgba(0,0,0,0.4);
+    padding-top: 60px;
 }
+
 .modal-content {
-    background-color: #fff;
-    margin: 10% auto;
-    padding: 20px;
-    border: 1px solid #888;
+    background-color: #fefefe;
+    margin: auto;
+    border-radius: 8px;
+    padding: 20px 30px;
+    border: 1.5px solid #888;
     width: 400px;
-    border-radius: 10px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    position: relative;
 }
-.modal-header {
-    font-size: 20px;
+
+#close-modal {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
     font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    right: 15px;
+    top: 10px;
+    transition: color 0.3s;
+}
+
+#close-modal:hover {
+    color: #000;
+}
+
+.modal-header {
+    font-size: 1.4rem;
+    font-weight: 700;
     margin-bottom: 15px;
+    color: #333;
     text-align: center;
 }
+
+/* Modal Form */
 .form-group {
     margin-bottom: 15px;
 }
-.form-group label {
-    font-weight: 500;
-}
-.form-group input, .form-group select {
-    width: 100%;
-    padding: 8px;
-}
-#close-modal {
-    float: right;
-    cursor: pointer;
-    font-size: 18px;
-    color: red;
-}
-</style>
 
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #444;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 1.8px solid #ccc;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group select:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+#submit-payment {
+    width: 100%;
+    padding: 10px 0;
+    background-color: #28a745;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#submit-payment:hover {
+    background-color: #1e7e34;
+}
+
+    </style>
 </head>
 <body>
 
 <?php include '../includes/header.php'; ?>
 <div class="dashboard-container" style="position: relative; overflow: visible;">
 <?php include '../includes/sidebar.php'; ?>
-
-    <h2>Lunch Payment Tracker</h2>
+<main class="content">
+        <h2 class="tracker-title">Lunch Payment Tracker</h2>
 
     <div class="tracker-container">
         <div class="tracker">
@@ -542,6 +619,8 @@ if (isset($_GET['ajax'])) {
         <div id="message-box"></div>
         <div id="tracker-results"></div>
     </div>
+
+</main>
 </div>
 
 <!-- Payment Modal -->
@@ -573,101 +652,124 @@ if (isset($_GET['ajax'])) {
 </div>
 
 <?php include '../includes/footer.php'; ?>
-
 <script>
 $(document).ready(function () {
-  // Live search
+
+  // === Live student search ===
   $('#student-search').on('input', function () {
     const query = $(this).val().trim();
-    if (!query) { $('#suggestions').hide().empty(); return; }
-    $.post('search-students.php', { query }, function(response){
-      $('#suggestions').empty().show();
-      if(Array.isArray(response) && response.length > 0){
-        response.forEach(function(student){
-          $('#suggestions').append(`
+    const $suggestions = $('#suggestions');
+
+    if (!query) {
+      $suggestions.hide().empty();
+      return;
+    }
+
+    $.post('search-students.php', { query }, function (response) {
+      $suggestions.empty().show();
+      if (Array.isArray(response) && response.length) {
+        response.forEach(student => {
+          $suggestions.append(`
             <div class="suggestion-item" data-admission="${student.admission_no}" data-name="${student.name}" data-class="${student.class}">
-              ${student.name} - ${student.admission_no} - ${student.class}
-            </div>
-          `);
+              ${student.name} – ${student.admission_no} – ${student.class}
+            </div>`);
         });
       } else {
-        $('#suggestions').append('<div class="suggestion-item">No records found</div>');
+        $suggestions.append('<div class="suggestion-item">No records found</div>');
       }
-    }, 'json');
+    }, 'json').fail((xhr, status, err) => {
+      console.error('Search AJAX error:', status, err, xhr.responseText);
+      $('#message-box').html("<div class='unpaid'>Search failed; check console for details.</div>").show();
+    });
   });
 
-  // Select student
-  $('#suggestions').on('click', '.suggestion-item', function(){
+  // === Select student ===
+  $('#suggestions').on('click', '.suggestion-item', function () {
     const admission = $(this).data('admission');
     const name = $(this).data('name');
     const studentClass = $(this).data('class');
-    $('#student-search').val(`${name} - ${admission} - ${studentClass}`);
+
+    $('#student-search').val(`${name} – ${admission} – ${studentClass}`);
     $('#admission_no').val(admission);
     $('#suggestions').hide().empty();
 
     const term = $('#term').val();
-    if(!term){ 
-      $('#message-box').html("<div class='unpaid'>Please select a term first</div>").show(); 
-      return; 
+    if (!term) {
+      $('#message-box').html("<div class='unpaid'>Please select a term first</div>").show();
+      return;
     }
     loadTracker(term, admission, 1);
   });
 
-  // Auto-update on term change
-  $('#term').on('change', function(){
+  // === Term change loads tracker ===
+  $('#term').on('change', function () {
     const term = $(this).val();
     const admission = $('#admission_no').val();
-    if(term && admission){
-      loadTracker(term, admission, 1);
-    }
+    if (term && admission) loadTracker(term, admission, 1);
   });
 
-  // Show popup form on Pay click
-  $('#pay-btn').on('click', function(){
+  // === Open payment modal ===
+  $('#pay-btn').on('click', function () {
     const term = $('#term').val();
     const admission = $('#admission_no').val();
-    if(term && admission){
+    if (term && admission) {
       $('#modal-admission-no').val(admission);
       $('#payment-modal').fadeIn();
     } else {
-      $('#message-box').html("<div class='unpaid'>Please select a term and student first</div>").show();
+      $('#message-box').html("<div class='unpaid'>Select a term and student first</div>").show();
     }
   });
 
-  // Close modal
-  $('#close-modal').on('click', function(){
-    $('#payment-modal').fadeOut();
-  });
+  // === Close modal ===
+  $('#close-modal').on('click', () => $('#payment-modal').fadeOut());
 
-  // Submit payment form
-  $('#payment-form').on('submit', function(e){
+  // === Submit payment form via AJAX ===
+  $('#payment-form').on('submit', function (e) {
     e.preventDefault();
     const data = $(this).serialize();
-    $.post('./pay-lunch.php', data, function(response){
-      alert(response.message);
-      $('#payment-modal').fadeOut();
-      const term = $('#term').val();
-      const admission = $('#admission_no').val();
-      loadTracker(term, admission, 1);
-    }, 'json');
+
+    $.ajax({
+      url: './pay-lunch-modal.php',
+      method: 'POST',
+      data: data,
+      dataType: 'json',
+      success: function (response) {
+        $('#message-box').html(`<div class="${response.success ? 'paid' : 'unpaid'}">${response.message}</div>`).show();
+        if (response.success) {
+          $('#payment-form')[0].reset();
+          $('#payment-modal').fadeOut();
+          const term = $('#term').val();
+          const admission = $('#admission_no').val();
+          if (term && admission) loadTracker(term, admission, 1);
+        }
+      },
+      error: function (xhr, status, error) {
+        console.error('Payment AJAX error:', status, error, xhr.responseText);
+        let msg = 'Payment request failed. Please try again.';
+        if (status === 'parsererror') {
+          msg = 'Invalid server response (not valid JSON).';
+        }
+        $('#message-box').html(`<div class="unpaid">${msg}</div>`).show();
+      }
+    });
   });
 
-  // Load tracker results
-  function loadTracker(term, admission, page){
-    $.get(window.location.pathname, {ajax:1, term:term, admission_no:admission, page:page}, function(response){
+  // === Load Tracker function with pagination ===
+  function loadTracker(term, admission, page = 1) {
+    $.get(window.location.pathname, { ajax: 1, term, admission_no: admission, page }, function (response) {
       $('#tracker-results').html(response);
-
-      // Pagination
-      $('#tracker-results').off('click').on('click', '.pagination a', function(e){
+      $('#tracker-results').off('click').on('click', '.pagination a', function (e) {
         e.preventDefault();
-        const newPage = $(this).data('page');
-        if(!$(this).hasClass('disabled') && newPage) loadTracker(term, admission, newPage);
+        const np = $(this).data('page');
+        if (!$(this).hasClass('disabled') && np) loadTracker(term, admission, np);
       });
     });
   }
 
-
 });
 </script>
+
+
+
 </body>
 </html>

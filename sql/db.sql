@@ -1,10 +1,13 @@
 CREATE TABLE administration (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     email VARCHAR(50) NOT NULL,
     role ENUM('admin', 'teacher') NOT NULL DEFAULT 'teacher',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    login_attempts INT DEFAULT 0,
+    is_locked TINYINT(1) DEFAULT 0,
+    PRIMARY KEY (id)
 );
 
 
@@ -177,7 +180,7 @@ CREATE TABLE uniform_purchases (
     total_price DECIMAL(10,2) NOT NULL,
     amount_paid DECIMAL(10,2) NOT NULL,
     balance DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('Cash', 'Card', 'Bank Transfer', 'Other') NOT NULL DEFAULT 'Cash',
+    payment_type ENUM('Cash','Card','Bank Transfer','Other', 'M-Pesa') NOT NULL DEFAULT 'Cash',
     purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -188,6 +191,16 @@ INSERT INTO uniform_prices (uniform_type, size, price) VALUES
 ('P.E T-Shirt', 'All Sizes', 450.00),
 ('Track Suit', '20-26', 1800.00),
 ('Track Suit', '28-32', 2000.00);
+
+CREATE TABLE purchase_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    receipt_number VARCHAR(50) NOT NULL,
+    admission_no VARCHAR(50) NOT NULL,
+    student_name VARCHAR(255) NOT NULL,
+    total_amount_paid DECIMAL(10, 2) NOT NULL,
+    payment_type VARCHAR(50) NOT NULL,
+    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 
 CREATE TABLE teacher_records(
@@ -238,4 +251,4 @@ CREATE TABLE attendance (
     PRIMARY KEY (admission_no, day_id),
     FOREIGN KEY (admission_no) REFERENCES student_records(admission_no) ON DELETE CASCADE,
     FOREIGN KEY (day_id) REFERENCES days(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+);

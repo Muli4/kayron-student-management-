@@ -56,10 +56,67 @@ $conn->close();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="../style/style.css">
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+<style>
+.dashboard-data {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+    margin-top: 20px;
+}
+
+.data-container {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    box-shadow: 0 4px 10px rgba(30, 100, 150, 0.3);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    transition: box-shadow 0.3s ease;
+    cursor: default;
+}
+
+.data-container:hover {
+    box-shadow: 0 6px 20px rgba(30, 100, 150, 0.5);
+}
+
+.data-container h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: #e0f7fa; /* lighter accent */
+}
+
+.data-container p {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+
+/* Make canvas span full width below the cards */
+#studentPerformanceChart {
+    grid-column: 1 / -1; /* span all columns */
+    width: 100% !important; /* ensure full width */
+    height: 300px; /* set desired height */
+    margin-top: 2rem;
+}
+
+/* Responsive tweaks */
+@media (max-width: 480px) {
+    .dashboard-data {
+        grid-template-columns: 1fr;
+    }
+}
+
+</style>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
@@ -97,18 +154,72 @@ $conn->close();
     <?php include '../includes/footer.php'; ?>
 
 <script>
-        document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) {
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
             const now = new Date();
             const timeString = now.toLocaleTimeString();
             clockElement.textContent = timeString;
         }
     }
-    updateClock(); // Initial call
-    setInterval(updateClock, 1000); // Update every second
+    updateClock(); 
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 30 seconds
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
 });
 </script>
+
 </body>
 </html>
