@@ -173,103 +173,124 @@ $conn->close();
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-      <link rel="stylesheet" href="../style/style.css"/>
-      <link rel="website icon" type="png" href="photos/Logo.jpg">
+      <link rel="stylesheet" href="../style/style-sheet.css"/>
+      <link rel="website icon" type="png" href="../images/school-logo.jpg">
       <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
       <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
       <title>Lunch Fee Payment</title>
-            <style>
-        .container-wrapper {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-start;
-          min-height: 100vh;
-          padding: 20px;
-          background-color: #f2f2f2;
-          overflow-y: auto;
-        }
+<style>
+  /* Container */
+.payment-container {
+  max-width: 480px;
+  margin: 30px auto;
+  padding: 25px 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
 
-        .payment-container {
-          width: 100%;
-          max-width: 600px;
-          background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-          padding: 25px 20px;
-          margin-bottom: 30px;
-        }
+/* Heading */
+.payment-container h2 {
+  text-align: center;
+  font-weight: 700;
+  color: #2c3e50;
+  margin-bottom: 25px;
+  font-size: 1.9rem;
+}
 
-        .payment-container h2 {
-          text-align: center;
-          margin-bottom: 20px;
-          color: #333;
-        }
+/* Form groups */
+.form-group {
+  margin-bottom: 18px;
+  position: relative;
+}
 
-        .form-group {
-          position: relative;
-          width: 100%;
-          max-width: 400px;
-          margin: 0 auto 20px;
-        }
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #34495e;
+}
 
-        .form-group label {
-          display: block;
-          margin-bottom: 6px;
-          font-weight: 600;
-          color: #333;
-        }
+/* Inputs and selects */
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 2px solid #2980b9;
+  border-radius: 6px;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease;
+}
 
-        .form-group input[type="text"],
-        .form-group input[type="number"],
-        .form-group select {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #ccc;
-          border-radius: 6px;
-          font-size: 16px;
-          box-sizing: border-box;
-        }
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+  border-color: #1b6699;
+  outline: none;
+}
 
-        #suggestions {
-          position: absolute;
-          top: 100%;
-          left: 0;
-          right: 0;
-          background-color: #007bff;
-          max-height: 250px;
-          overflow-y: auto;
-          z-index: 1000;
-          border-radius: 0 0 6px 6px;
-        }
+/* Suggestions box */
+#suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1.8px solid #2980b9;
+  border-top: none;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 1000;
+  border-radius: 0 0 6px 6px;
+  font-size: 0.95rem;
+  box-shadow: 0 3px 6px rgb(0 0 0 / 0.1);
+}
 
-        .suggestion-item {
-          padding: 10px 12px;
-          cursor: pointer;
-          font-size: 15px;
-          color: #fff;
-        }
+.suggestion-item {
+  padding: 9px 12px;
+  cursor: pointer;
+  color: #34495e;
+  transition: background-color 0.2s ease;
+}
 
-        .suggestion-item:hover {
-          background-color: #fff;
-          color: #007bff;
-        }
+.suggestion-item:hover {
+  background-color: #2980b9;
+  color: white;
+}
 
-        .btn-submit {
-          width: 100%;
-          max-width: 400px;
-          padding: 12px;
-          background-color: #007bff;
-          border: none;
-          border-radius: 6px;
-          color: white;
-          font-size: 16px;
-          cursor: pointer;
-        }
+/* Submit button */
+.btn-submit {
+  width: 100%;
+  padding: 14px 0;
+  font-weight: 700;
+  font-size: 1.15rem;
+  background-color: #2980b9;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
 
-        .btn-submit:hover {
-          background-color: #0056b3;
-        }
+.btn-submit:hover {
+  background-color: #1b6699;
+}
+
+/* Responsive adjustments */
+@media (max-width: 550px) {
+  .payment-container {
+    margin: 20px 10px;
+    padding: 20px 15px;
+  }
+}
+
 </style>
     </head>
     <body>
@@ -314,72 +335,127 @@ $conn->close();
     <?php include '../includes/footer.php'; ?>
 
     <script>
-    $(document).ready(function () {
-      $('#student-search').on('input', function () {
-        const query = $(this).val().trim();
-        if (query.length === 0) {
-          $('#suggestions').empty();
-          return;
-        }
+$(document).ready(function () {
+  // Student search AJAX live suggestions
+  $('#student-search').on('input', function () {
+    const query = $(this).val().trim();
+    if (query.length === 0) {
+      $('#suggestions').empty();
+      return;
+    }
 
-        $.ajax({
-          url: 'search-students.php',
-          method: 'POST',
-          dataType: 'json',
-          data: { query },
-          success: function (response) {
-            $('#suggestions').empty();
-            if (Array.isArray(response) && response.length > 0) {
-              response.forEach(function (student) {
-                $('#suggestions').append(`
-                  <div class="suggestion-item" 
-                      data-admission="${student.admission_no}" 
-                      data-name="${student.name}" 
-                      data-class="${student.class}">
-                    ${student.name} - ${student.admission_no} - ${student.class}
-                  </div>
-                `);
-              });
-            } else {
-              $('#suggestions').append('<div class="suggestion-item">No records found</div>');
-            }
-          },
-          error: function () {
-            $('#suggestions').html('<div class="suggestion-item">Error fetching data</div>');
-          }
-        });
-      });
-
-      $('#suggestions').on('click', '.suggestion-item', function () {
-        const name = $(this).data('name');
-        const admission = $(this).data('admission');
-        const studentClass = $(this).data('class');
-
-        $('#student-search').val(`${name} - ${admission} - ${studentClass}`);
-        $('#admission_no').val(admission);
+    $.ajax({
+      url: 'search-students.php',
+      method: 'POST',
+      dataType: 'json',
+      data: { query },
+      success: function (response) {
         $('#suggestions').empty();
+        if (Array.isArray(response) && response.length > 0) {
+          response.forEach(function (student) {
+            $('#suggestions').append(`
+              <div class="suggestion-item" 
+                  data-admission="${student.admission_no}" 
+                  data-name="${student.name}" 
+                  data-class="${student.class}">
+                ${student.name} - ${student.admission_no} - ${student.class}
+              </div>
+            `);
+          });
+        } else {
+          $('#suggestions').append('<div class="suggestion-item">No records found</div>');
+        }
+      },
+      error: function () {
+        $('#suggestions').html('<div class="suggestion-item">Error fetching data</div>');
+      }
+    });
+  });
+
+  // When user clicks a suggestion item
+  $('#suggestions').on('click', '.suggestion-item', function () {
+    const name = $(this).data('name');
+    const admission = $(this).data('admission');
+    const studentClass = $(this).data('class');
+
+    $('#student-search').val(`${name} - ${admission} - ${studentClass}`);
+    $('#admission_no').val(admission);
+    $('#suggestions').empty();
+  });
+
+  // Hide suggestions if clicking outside
+  $(document).on('click', function (e) {
+    if (!$(e.target).closest('.form-group').length) {
+      $('#suggestions').empty();
+    }
+  });
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+  /* ===== Real-time clock ===== */
+  function updateClock() {
+    const clockElement = document.getElementById('realTimeClock');
+    if (clockElement) {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString();
+      clockElement.textContent = timeString;
+    }
+  }
+  updateClock(); 
+  setInterval(updateClock, 1000);
+
+  /* ===== Dropdowns: only one open ===== */
+  document.querySelectorAll(".dropdown-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const parent = btn.parentElement;
+
+      document.querySelectorAll(".dropdown").forEach(drop => {
+        if (drop !== parent) {
+          drop.classList.remove("open");
+        }
       });
 
-      $(document).on('click', function (e) {
-        if (!$(e.target).closest('.form-group').length) {
-          $('#suggestions').empty();
-        }
-      });
+      parent.classList.toggle("open");
     });
-    </script>
-    <script>
-            document.addEventListener("DOMContentLoaded", function () {
-        function updateClock() {
-            const clockElement = document.getElementById('realTimeClock');
-            if (clockElement) {
-                const now = new Date();
-                const timeString = now.toLocaleTimeString();
-                clockElement.textContent = timeString;
-            }
-        }
-        updateClock(); // Initial call
-        setInterval(updateClock, 1000); // Update every second
-    });
-    </script>
+  });
+
+  /* ===== Sidebar toggle for mobile ===== */
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.querySelector('.toggle-btn');
+  const overlay = document.createElement('div');
+  overlay.classList.add('sidebar-overlay');
+  document.body.appendChild(overlay);
+
+  toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('show');
+    overlay.classList.toggle('show');
+  });
+
+  /* ===== Close sidebar on outside click ===== */
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('show');
+    overlay.classList.remove('show');
+  });
+
+  /* ===== Auto logout after 5 minutes inactivity (no alert) ===== */
+  let logoutTimer;
+
+  function resetLogoutTimer() {
+    clearTimeout(logoutTimer);
+    logoutTimer = setTimeout(() => {
+      window.location.href = 'logout.php'; // Adjust your logout URL here
+    }, 300000); // 300,000ms = 5 minutes
+  }
+
+  // Reset timer on user activity
+  ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, resetLogoutTimer);
+  });
+
+  // Start the timer on page load
+  resetLogoutTimer();
+});
+</script>
+
     </body>
     </html>

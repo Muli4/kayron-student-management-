@@ -83,11 +83,10 @@ if ($start_date && $end_date) {
 <head>
   <meta charset="UTF-8">
   <title>Weekly Financial Report</title>
-  <link rel="stylesheet" href="../style/style.css">
-  <link rel="website icon" type="png" href="photos/Logo.jpg">
+  <link rel="stylesheet" href="../style/style-sheet.css">
+  <link rel="website icon" type="png" href="../images/school-logo.jpg">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
     .weekly-report {
       font-family: 'Segoe UI', sans-serif;
@@ -199,18 +198,27 @@ if ($start_date && $end_date) {
       font-size: 18px;
     }
 
-    @media (max-width: 600px) {
-      .weekly-report__form {
-        flex-direction: column;
-        align-items: flex-start;
-      }
+@media (max-width: 600px) {
+  .weekly-report__container {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
 
-      .weekly-report__form label,
-      .weekly-report__form input,
-      .weekly-report__form button {
-        width: 100%;
-      }
-    }
+  .weekly-report__table {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow-x: auto;
+    display: block;
+  }
+
+  .weekly-report__table th,
+  .weekly-report__table td {
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+}
+
 
     /* Print styles */
     @media print {
@@ -260,32 +268,6 @@ if ($start_date && $end_date) {
       }
     }
   </style>
-
-  <script>
-    function printReport() {
-      const summary = document.querySelector('.weekly-report__summary');
-      const table = document.querySelector('.weekly-report__table');
-
-      if (!summary || !table) {
-        alert("No report available to print.");
-        return;
-      }
-
-      const printContainer = document.createElement('div');
-      printContainer.classList.add('printable-area');
-      printContainer.appendChild(summary.cloneNode(true));
-      printContainer.appendChild(table.cloneNode(true));
-
-      const originalBody = document.body.innerHTML;
-      document.body.innerHTML = '';
-      document.body.appendChild(printContainer);
-
-      window.print();
-
-      document.body.innerHTML = originalBody;
-      window.location.reload();
-    }
-  </script>
 </head>
 <body>
 
@@ -345,6 +327,97 @@ if ($start_date && $end_date) {
 </div>
 
 <?php include '../includes/footer.php'; ?>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
 
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 30 seconds
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
+});
+</script>
+  <script>
+    function printReport() {
+      const summary = document.querySelector('.weekly-report__summary');
+      const table = document.querySelector('.weekly-report__table');
+
+      if (!summary || !table) {
+        alert("No report available to print.");
+        return;
+      }
+
+      const printContainer = document.createElement('div');
+      printContainer.classList.add('printable-area');
+      printContainer.appendChild(summary.cloneNode(true));
+      printContainer.appendChild(table.cloneNode(true));
+
+      const originalBody = document.body.innerHTML;
+      document.body.innerHTML = '';
+      document.body.appendChild(printContainer);
+
+      window.print();
+
+      document.body.innerHTML = originalBody;
+      window.location.reload();
+    }
+  </script>
 </body>
 </html>

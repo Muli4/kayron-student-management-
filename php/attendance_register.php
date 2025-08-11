@@ -41,82 +41,150 @@ $selected_day_id = $_GET['day_id'] ?? ($days[0]['day_id'] ?? null);
 $classes = ['babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6'];
 $selected_class = $_GET['class'] ?? '';
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Daily Attendance Register</title>
-    <link rel="stylesheet" href="../style/style.css">
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
-    <style>
-        /* === Attendance Container & Layout === */
-        .attendance-container { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            width: 100%;
-        }
-h2{
-    text-align: center;
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+<style>
+    /* Container for attendance */
+.attendance-container {
+  max-width: 900px;
+  margin: 20px auto;
+  background: #fff;
+  padding: 20px 25px;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
-        .attendance-filters {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 15px;
-            background: #eef3ff;
-            border-radius: 8px;
-            margin-top: 20px;
-            width: 70%;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-        .attendance-filters label {
-            font-weight: bold;
-        }
-        .attendance-filters select {
-            padding: 6px 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 14px;
-            width: 200px;
-        }
 
-        /* === Attendance Table === */
-        .attendance-table {
-            border-collapse: collapse;
-            width: 90%;
-            margin-top: 20px;
-        }
-        .attendance-table th, 
-        .attendance-table td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: center;
-        }
-        .attendance-table th {
-            background: #f0f0f0;
-            font-weight: bold;
-        }
+/* Heading */
+.attendance-container h2 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 25px;
+  font-weight: 700;
+  font-size: 20px;
+}
 
-        /* === Status Colors === */
-        .present { color: green; font-weight: bold; }
-        .absent { color: red; font-weight: bold; }
-        .disabled { background-color: #f9f9f9; color:#999; }
+/* Filter form styling */
+.attendance-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 30px;
+}
 
-        /* === Save Button === */
-        .btn-save { 
-            margin-top: 15px; 
-            padding: 10px 20px; 
-            background: #28a745; 
-            color: white; 
-            border: none; 
-            cursor: pointer; 
-            border-radius: 5px;
-            font-weight: bold;
-            width: 100%;
-        }
-        .btn-save:hover { background: #218838; }
-    </style>
+.attendance-filters label {
+  font-weight: 600;
+  color: #34495e;
+  align-self: center;
+}
+
+.attendance-filters select {
+  padding: 7px 12px;
+  border: 2px solid #2980b9;
+  border-radius: 6px;
+  font-size: 1rem;
+  color: #2c3e50;
+  min-width: 180px;
+  transition: border-color 0.3s ease;
+}
+
+.attendance-filters select:focus {
+  border-color: #1b6699;
+  outline: none;
+}
+.attendance-container p {
+  text-align: center;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  color: #2c3e50;
+}
+
+/* Attendance table */
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  font-size: 1rem;
+  color: #34495e;
+}
+
+.attendance-table th,
+.attendance-table td {
+  border: 1.5px solid #2980b9;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.attendance-table th {
+  background-color: #2980b9;
+  color: white;
+  font-weight: 700;
+  user-select: none;
+}
+
+/* Radio buttons alignment */
+.attendance-table input[type="radio"] {
+  transform: scale(1.2);
+  cursor: pointer;
+}
+
+/* Status text */
+.present {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.absent {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+/* Save button */
+.btn-save {
+  display: block;
+  margin: 0 auto 10px auto;
+  background-color: #2980b9;
+  color: white;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 12px 30px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-save:hover {
+  background-color: #1b6699;
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+  .attendance-filters {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .attendance-filters select {
+    min-width: 100%;
+  }
+
+  .attendance-table th, .attendance-table td {
+    padding: 8px 6px;
+    font-size: 0.9rem;
+  }
+}
+
+</style>
 </head>
 <body>
 <?php include '../includes/header.php'; ?>
@@ -125,9 +193,9 @@ h2{
     <?php include '../includes/sidebar.php'; ?>
     <main class="content">
 
-        <h2>Daily Attendance Register</h2>
-
+        
         <div class="attendance-container">
+            <h2>Daily Attendance Register</h2>
 
             <!-- Filters -->
             <form method="GET" class="attendance-filters">
@@ -236,5 +304,72 @@ h2{
 </div>
 
 <?php include '../includes/footer.php'; ?>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 5 minutes
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
+});
+</script>
 </body>
 </html>

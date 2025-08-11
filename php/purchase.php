@@ -1,260 +1,249 @@
+<?php
+session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: ../index.php");
+    exit();
+}
 
+include 'db.php'; // Database connection
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <title>Purchase Books & Uniform</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="../style/style.css" />
-    <link rel="website icon" href="photos/Logo.jpg" />
-    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
 <style>
-  /* Container row for each item */
-.form-title {
-  font-size: 2.2rem;
-  color: #2c3e50;
-  font-weight: 700;
-  margin-bottom: 24px;
+  /* Container layout */
+.purchase-form {
+  max-width: 450px;          /* reduced width like school fees form */
+  margin: 20px auto 50px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+h2.form-title {
   text-align: center;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+  font-weight: 700;
+  font-size: 1.8rem;
+  color: #2c3e50;
+  margin-bottom: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.item-row {
+h2.form-title i {
+  color: #2980b9;
+  font-size: 1.6rem;
+  vertical-align: middle;
+}
+/* Section titles with icon */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 18px;
+  color: #2c3e50;
+  border-bottom: 2px solid #2980b9;
+  padding-bottom: 5px;
+}
+
+/* Form row: align all items in one line */
+.form-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 15px;
+  flex-wrap: nowrap;
 }
 
-/* Checkbox + label wrapper */
+/* Label with checkbox: fixed width */
 .checkbox-label {
   display: flex;
   align-items: center;
-  white-space: nowrap;  /* prevent label text wrap */
-  gap: 8px;
-  flex: 1 1 auto; /* take remaining horizontal space */
-}
-
-/* Checkbox input style */
-.checkbox-label input[type="checkbox"] {
-  margin: 0;
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  gap: 6px;
   cursor: pointer;
+  flex: 1 0 160px;
+  user-select: none;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #34495e;
 }
 
-/* Label text inside span */
-.checkbox-label span {
-  user-select: none;
+/* Checkbox styling */
+.checkbox-label input[type="checkbox"] {
+  transform: scale(1.25);
+  cursor: pointer;
+  margin: 0;
 }
 
 /* Quantity input */
 .form-quantity {
-  width: 100px;
-  padding: 6px 8px;
-  box-sizing: border-box;
+  width: 65px;
+  padding: 6px 10px;
   font-size: 1rem;
+  border: 1.8px solid #2980b9;
+  border-radius: 5px;
+  text-align: center;
 }
 
-/* Amount paid input */
+/* Amount Paid input */
 .form-amount-paid {
-  width: 160px;
-  padding: 6px 8px;
-  box-sizing: border-box;
+  width: 100px;
+  padding: 6px 10px;
   font-size: 1rem;
+  border: 1.8px solid #2980b9;
+  border-radius: 5px;
+  text-align: right;
 }
 
-/* === FORM CONTAINER & BACKGROUND === */
-.purchase-form {
-  max-width: 650px;
-  margin: 40px auto;
-  padding: 30px 35px;
-  background: #f9fafb;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 0.9rem;
-  color: #2c3e50;
+/* Disabled inputs */
+input:disabled {
+  background-color: #f8f8f8;
+  cursor: not-allowed;
+  border-color: #ccc;
 }
 
-/* === FORM SECTION TITLES === */
-.purchase-form .section-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #34495e;
-  border-bottom: 2px solid #3498db;
-  padding-bottom: 6px;
-  margin-bottom: 18px;
-  user-select: none;
+/* Student search wrapper */
+.student-search-wrapper {
+  position: relative;
 }
 
-/* === FORM ROWS (except .item-row) === */
-.purchase-form > section .form-row:not(.item-row) {
-  display: flex;
-  align-items: center;
-  margin-bottom: 16px;
-  gap: 15px;
-}
-
-/* === LABELS (except inside .checkbox-label) === */
-.purchase-form label:not(.checkbox-label) {
-  min-width: 140px;
-  font-weight: 600;
+/* Student search input full width */
+#student-search {
+  width: 100%;
+  padding: 10px 12px;
   font-size: 1rem;
-  color: #34495e;
-  user-select: none;
+  border: 1.8px solid #2980b9;
+  border-radius: 5px;
 }
 
-/* === TEXT, NUMBER INPUTS & SELECT (excluding .form-quantity & .form-amount-paid) === */
-.purchase-form input[type="text"]:not(.form-quantity):not(.form-amount-paid),
-.purchase-form input[type="number"]:not(.form-quantity):not(.form-amount-paid),
-.purchase-form select {
-  font-size: 0.9rem;
-  padding: 8px 12px;
-  box-sizing: border-box;
-  border: 1.8px solid #bdc3c7;
-  border-radius: 6px;
-  max-width: 220px;
-  transition: border-color 0.3s ease;
-  background: #fff;
-  color: #2c3e50;
-}
-
-.purchase-form input[type="text"]:focus,
-.purchase-form input[type="number"]:focus,
-.purchase-form select:focus {
-  border-color: #2980b9;
-  outline: none;
-  background: #eaf4fc;
-}
-
-/* === SUBMIT BUTTON === */
-.purchase-form .submit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1rem;
-  padding: 12px 28px;
-  background-color: #2980b9;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(41, 128, 185, 0.4);
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.purchase-form .submit-btn:hover {
-  background-color: #1c5980;
-  box-shadow: 0 6px 18px rgba(28, 89, 128, 0.6);
-}
-
-/* === SUGGESTIONS BOX FOR LIVE SEARCH === */
+/* Suggestions dropdown */
 #suggestions {
   position: absolute;
   background: white;
-  border: 1.5px solid #bdc3c7;
-  max-width: 350px;
-  max-height: 200px;
+  border: 1.5px solid #2980b9;
+  border-top: none;
+  width: 100%;
+  max-height: 150px;
   overflow-y: auto;
-  font-size: 0.9rem;
-  color: #2c3e50;
-  z-index: 9999;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-  border-radius: 6px;
+  z-index: 1000;
+  font-size: 0.95rem;
+  border-radius: 0 0 6px 6px;
 }
 
-#suggestions .suggestion-item {
-  padding: 8px 14px;
+.suggestion-item {
+  padding: 8px 10px;
   cursor: pointer;
-  user-select: none;
-  transition: background-color 0.25s ease;
+  color: #34495e;
 }
 
-#suggestions .suggestion-item:hover {
+.suggestion-item:hover {
   background-color: #2980b9;
   color: white;
 }
-
-/* === STUDENT SEARCH WRAPPER - relative for suggestions positioning === */
-.student-search-wrapper {
-  position: relative;
+#total_amount {
   width: 100%;
-  max-width: 350px;
+  padding: 6px 10px;           /* Reduced vertical padding */
+  font-size: 1rem;             /* Slightly smaller font size */
+  font-weight: 700;
+  color: #2980b9;
+  border: 2px solid #2980b9;
+  border-radius: 6px;
+  background-color: #f0f8ff;
+  text-align: right;
+  pointer-events: none;        /* Makes it visually read-only */
+  box-sizing: border-box;
 }
 
-/* Style the select dropdown */
-.form-row select#payment_type {
+
+/* Payment method select styling */
+#payment_type {
   width: 100%;
-  max-width: 320px;
-  padding: 8px 12px;
-  border-radius: 5px;
-  border: 1.8px solid #3498db;
-  font-size: 1rem;
+  padding: 6px 10px;         /* Reduced vertical padding */
+  font-size: 16px;            /* Optional: slightly smaller font */
+  font-weight: 600;
+  border: 2px solid #2980b9;
+  border-radius: 6px;
   background-color: #fff;
-  appearance: none; /* Remove default arrow */
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  cursor: pointer;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%233498db' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px 16px;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-.form-row select#payment_type:focus {
-  outline: none;
-  border-color: #2980b9;
-  box-shadow: 0 0 8px rgba(41, 128, 185, 0.4);
-}
-
-/* Style the dropdown options */
-.form-row select#payment_type option {
-  background-color: #f9f9f9;
   color: #2c3e50;
-  padding: 8px;
-  font-size: 1rem;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+  height: auto;              /* Ensure height is not fixed */
 }
 
-/* Hover/focus style for options (some browsers support it) */
-.form-row select#payment_type option:hover,
-.form-row select#payment_type option:focus {
-  background-color: #3498db;
+#payment_type:focus {
+  border-color: #1b6699;
+  outline: none;
+}
+
+/* Button container and button */
+.button-container {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.submit-btn {
+  background-color: #2980b9;
   color: white;
+  font-weight: 700;
+  font-size: 1.15rem;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.3s ease;
 }
 
-/* === RESPONSIVE: smaller screens === */
-@media (max-width: 480px) {
+.submit-btn:hover {
+  background-color: #1b6699;
+}
+
+/* Responsive adjustments */
+@media (max-width: 550px) {
   .purchase-form {
-    padding: 20px 20px;
-    margin: 20px 10px;
+    max-width: 95%;
+    padding: 15px;
   }
-  
-  .purchase-form > section .form-row:not(.item-row) {
-    flex-direction: column;
-    align-items: flex-start;
+  .form-row {
+    flex-wrap: wrap;
+    gap: 8px;
   }
-  
-  .purchase-form label:not(.checkbox-label) {
-    min-width: auto;
+  .checkbox-label {
+    flex: 1 1 100%;
     margin-bottom: 6px;
   }
-  
   .form-quantity, .form-amount-paid {
-    width: 100%;
-    max-width: none;
+    width: 48%;
+    text-align: left;
   }
-  
-  #suggestions {
-    max-width: 100%;
+  .form-row > label[for="student-search"] {
+    flex: 0 0 100%; /* Label on its own line */
+    margin-bottom: 6px;
+  }
+
+  .student-search-wrapper {
+    flex: 1 1 100%;  /* Take full width */
+  }
+
+  #student-search {
+    width: 100%;    /* Ensure input fills container */
   }
 }
-
 
 </style>
 </head>
@@ -297,7 +286,7 @@
                     </label>
                     <input type="hidden" name="books[<?= htmlspecialchars($book['book_name']) ?>][price]" value="<?= $book['price'] ?>" />
                     <input type="number" name="books[<?= htmlspecialchars($book['book_name']) ?>][quantity]" placeholder="Qty" class="form-quantity" min="1" oninput="calculateTotal()" />
-                    <input type="number" name="books[<?= htmlspecialchars($book['book_name']) ?>][amount_paid]" placeholder="Amount Paid" class="form-amount-paid" min="0" step="0.01" oninput="calculateTotal()" />
+                    <input type="number" name="books[<?= htmlspecialchars($book['book_name']) ?>][amount_paid]" placeholder="Amount" class="form-amount-paid" min="0" step="0.01" oninput="calculateTotal()" />
                 </div>
                 <?php endwhile; ?>
             </section>
@@ -315,7 +304,7 @@
                     <input type="hidden" name="uniforms[<?= $uniform['id'] ?>][size]" value="<?= htmlspecialchars($uniform['size']) ?>" />
                     <input type="hidden" name="uniforms[<?= $uniform['id'] ?>][price]" value="<?= $uniform['price'] ?>" />
                     <input type="number" name="uniforms[<?= $uniform['id'] ?>][quantity]" placeholder="Qty" class="form-quantity" min="1" oninput="calculateTotal()" />
-                    <input type="number" name="uniforms[<?= $uniform['id'] ?>][amount_paid]" placeholder="Amount Paid" class="form-amount-paid" min="0" step="0.01" oninput="calculateTotal()" />
+                    <input type="number" name="uniforms[<?= $uniform['id'] ?>][amount_paid]" placeholder="Amount" class="form-amount-paid" min="0" step="0.01" oninput="calculateTotal()" />
                 </div>
                 <?php endwhile; ?>
             </section>
@@ -358,7 +347,7 @@ $(document).ready(function () {
     const query = $(this).val().trim();
     $('#admission_no').val('');
 
-    if (query.length < 2) {
+    if (query.length < 1) {
       $('#suggestions').empty().hide();
       return;
     }
@@ -454,6 +443,73 @@ function calculateTotal() {
 
   document.getElementById('total_amount').value = totalPaid.toFixed(2);
 }
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 5 minutes
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
+});
 </script>
 
 </body>

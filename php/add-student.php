@@ -413,7 +413,7 @@ document.addEventListener("DOMContentLoaded", function () {
         logoutTimer = setTimeout(() => {
             // Silent logout - redirect to logout page
             window.location.href = 'logout.php'; // Change to your logout URL
-        }, 300000); // 30 seconds
+        }, 300000); // 5 minutes
     }
 
     // Reset timer on user activity

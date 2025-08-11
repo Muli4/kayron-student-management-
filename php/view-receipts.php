@@ -1,4 +1,9 @@
 <?php
+session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: ../index.php");
+    exit();
+}
 require 'db.php';
 
 $student_name = isset($_GET['name']) ? trim($_GET['name']) : '';
@@ -62,46 +67,137 @@ if ($student_name !== '') {
 <head>
     <meta charset="UTF-8">
     <title>Student Receipts</title>
-    <link rel="stylesheet" href="../style/style.css">
-    <style>
-        .receipt-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        .receipt-table th, .receipt-table td {
-            border: 1px dotted #000;
-            padding: 8px;
-            text-align: left;
-        }
-        .print-btn {
-            padding: 5px 10px;
-            background-color: #009688;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        .search-box {
-            margin-bottom: 20px;
-            position: relative;
-        }
-        #suggestions {
-            position: absolute;
-            background: white;
-            border: 1px solid #ccc;
-            width: 100%;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 10;
-        }
-        .suggestion-item {
-            padding: 10px;
-            cursor: pointer;
-        }
-        .suggestion-item:hover {
-            background-color: #f0f0f0;
-        }
-    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
+<style>
+    /* Container */
+.container-wrapper {
+  max-width: 900px;
+  margin: 30px auto;
+  padding: 0 20px;
+}
+
+/* Headings */
+.container-wrapper h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  font-weight: 700;
+  font-size: 1.8rem;
+  color: #222;
+}
+
+/* Search box */
+.search-box {
+  position: relative;
+  max-width: 500px;
+  margin: 0 auto 25px auto;
+}
+
+.search-box input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1rem;
+  border: 1.5px solid #aaa;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.search-box input[type="text"]:focus {
+  border-color: #0056b3;
+  box-shadow: 0 0 5px rgba(0,86,179,0.5);
+}
+
+/* Suggestions dropdown */
+#suggestions {
+  position: absolute;
+  width: 100%;
+  background: white;
+  border: 1px solid #aaa;
+  border-top: none;
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 1000;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.suggestion-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.suggestion-item:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+/* Receipt table */
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.95rem;
+  box-shadow: 0 0 8px rgba(0,0,0,0.05);
+}
+
+.receipt-table th,
+.receipt-table td {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  vertical-align: top;
+  text-align: left;
+}
+
+.receipt-table th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+  color: #222;
+}
+
+/* Print button */
+.print-btn {
+  background-color: #007bff;
+  border: none;
+  color: white;
+  padding: 7px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+}
+
+.print-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .container-wrapper {
+    padding: 0 10px;
+  }
+
+  .receipt-table th,
+  .receipt-table td {
+    font-size: 0.9rem;
+    padding: 8px 6px;
+  }
+
+  .print-btn {
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
+
+  .search-box {
+    max-width: 100%;
+  }
+}
+
+</style>
 </head>
 <body>
 <?php include '../includes/header.php'; ?>
@@ -110,7 +206,7 @@ if ($student_name !== '') {
 
 <main class="content">
     <div class="container-wrapper">
-        <h2>Search Student Receipts</h2>
+        <h2>Student Receipts</h2>
         <form method="GET" class="search-box" autocomplete="off">
             <input type="text" name="name" id="student-search" placeholder="Enter student name..." value="<?= htmlspecialchars($student_name) ?>" />
             <div id="suggestions"></div>
@@ -280,6 +376,73 @@ $(document).on('click', function (e) {
     if (!$(e.target).closest('.search-box').length) {
         $('#suggestions').empty();
     }
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 30 seconds
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
 });
 </script>
 </body>

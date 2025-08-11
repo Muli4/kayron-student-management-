@@ -340,157 +340,188 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <title>Term & Week Registration</title>
-  <link rel="stylesheet" href="../style/style.css">
-  <link rel="website icon" type="png" href="photos/Logo.jpg">
-  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>
-    if (window.history.replaceState) {
-      window.history.replaceState(null, null, window.location.href);
-    }
-
-    function showEditPopup() {
-      document.getElementById('termEditPopup').style.display = 'block';
-    }
-
-    function closeEditPopup() {
-      document.getElementById('termEditPopup').style.display = 'none';
-    }
-  </script>
-  <style>
-    /* Container wrapper */
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    /* Container for the whole term/week management */
 .term-week-container {
-  max-width: 600px;
-  margin: 100px auto;
-  padding: 25px;
-  background: #fdfdfd;
-  border-radius: 8px;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-  font-family: 'Segoe UI', sans-serif;
+  max-width: 460px;
+  margin: 25px auto 60px;
+  padding: 25px 30px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #2c3e50;
 }
 
-/* Headings */
+/* Main heading */
 .term-week-container h1 {
   text-align: center;
-  font-size: 24px;
-  margin-bottom: 20px;
+  font-weight: 700;
+  font-size: 2rem;
+  margin-bottom: 30px;
+  color: #1a4d8f;
 }
 
-.term-week-container h3 {
-  margin-top: 20px;
-  font-size: 18px;
-  color: #333;
-}
-
-/* Message alert */
+/* Message box for success/error */
 .term-week-message {
-  background: #e0f7e9;
-  color: #2c7a4f;
-  padding: 10px;
-  border: 1px solid #b6e2c8;
-  margin-bottom: 15px;
-  border-radius: 5px;
+  background-color: #e7f5e6;
+  border: 1.5px solid #27ae60;
+  color: #27ae60;
+  padding: 12px 18px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-weight: 600;
   text-align: center;
 }
 
-/* Label & Inputs */
+/* Forms */
+.term-week-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Form headings inside the forms */
+.term-week-form h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2980b9;
+  margin-bottom: 12px;
+  border-bottom: 2.5px solid #2980b9;
+  padding-bottom: 5px;
+}
+
+/* Labels */
 .term-week-form label {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 6px;
+  color: #34495e;
   display: block;
-  margin-top: 12px;
-  font-weight: 500;
-  color: #333;
 }
 
-.term-week-form input,
-.term-week-form select {
+/* Inputs (number, date, text) */
+.term-week-form input[type="number"],
+.term-week-form input[type="date"],
+.term-week-form input[type="text"] {
+  padding: 10px 14px;
+  font-size: 1rem;
+  border: 2px solid #2980b9;
+  border-radius: 7px;
+  outline-offset: 2px;
+  transition: border-color 0.3s ease;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  margin-top: 5px;
   box-sizing: border-box;
-  font-size: 14px;
+  color: #2c3e50;
 }
 
-/* Checkboxes */
-.term-week-form input[type="checkbox"] {
-  width: auto;
-  margin-right: 5px;
+.term-week-form input[type="number"]:read-only,
+.term-week-form input[type="text"]:read-only {
+  background-color: #f3f8ff;
+  cursor: default;
+}
+
+.term-week-form input[type="number"]:focus,
+.term-week-form input[type="date"]:focus,
+.term-week-form input[type="text"]:focus {
+  border-color: #1b6699;
+  outline: none;
+}
+
+/* Checkbox label */
+.term-week-form label > input[type="checkbox"] {
+  margin-right: 10px;
+  transform: scale(1.2);
+  cursor: pointer;
+  vertical-align: middle;
 }
 
 /* Submit buttons */
-.term-week-form button {
-  margin-top: 15px;
-  padding: 10px 18px;
-  background-color: #004b8d;
+.term-week-form button[type="submit"],
+.term-week-edit-btn {
+  background-color: #2980b9;
   color: #fff;
+  font-weight: 700;
+  font-size: 1.15rem;
+  padding: 12px 20px;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
-  font-weight: bold;
-  transition: background 0.3s ease;
+  align-self: flex-start;
+  transition: background-color 0.3s ease;
 }
 
-.term-week-form button:hover {
-  background-color: #00345f;
+.term-week-form button[type="submit"]:hover,
+.term-week-edit-btn:hover {
+  background-color: #1b6699;
 }
 
-/* Edit button beside current term info */
+/* Term & week header with term info and edit button */
 .term-week-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f1f1f1;
-  padding: 10px 15px;
-  border-radius: 5px;
-  margin-top: 10px;
+  margin-bottom: 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #34495e;
 }
 
 .term-week-edit-btn {
-  background: #ff9800;
-  color: #fff;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
+  padding: 8px 15px;
+  font-size: 1rem;
+  border-radius: 6px;
 }
 
-.term-week-edit-btn:hover {
-  background: #e68900;
-}
-
-/* Pop-up form */
+/* Popup overlay for edit form */
 .term-week-popup {
+  display: none; /* Hidden by default */
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: #ffffff;
-  border: 1px solid #ccc;
-  padding: 20px 25px;
-  border-radius: 8px;
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
+  width: 380px;
   max-width: 90%;
-  width: 400px;
-  display: none;
+  background: white;
+  padding: 25px 30px;
+  border-radius: 12px;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+  z-index: 2000;
 }
 
-.term-week-popup h3 {
-  margin-bottom: 10px;
-}
-
+/* Popup close button */
 .term-week-popup-close {
-  float: right;
-  font-size: 20px;
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #888;
   cursor: pointer;
-  color: #999;
+  transition: color 0.2s ease;
+  user-select: none;
 }
 
 .term-week-popup-close:hover {
-  color: #000;
+  color: #2980b9;
+}
+
+/* Responsive */
+@media (max-width: 520px) {
+  .term-week-container {
+    max-width: 95%;
+    padding: 20px 15px;
+  }
+
+  .term-week-popup {
+    width: 90%;
+    padding: 20px 15px;
+  }
 }
 
 </style>
@@ -503,7 +534,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <main class="content">
             <div class="term-week-container">
-                <h1>CBC Term & Week Management</h1>
+                <h1><i class='bx bx-calendar'></i> CBC Term & Week Management</h1>
 
                 <?php if (!empty($message)): ?>
                     <div class="term-week-message"><?= $message ?></div>
@@ -512,7 +543,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php if ($term_required || isset($_GET['register_new_term'])): ?>
                     <!-- TERM REGISTRATION -->
                     <form method="post" class="term-week-form">
-                        <h3>Register New Term</h3>
+                        <h3><i class='bx bx-task'></i> Register New Term</h3>
 
                         <label for="term_number">Term Number</label>
                         <input type="number" name="term_number" id="term_number" required>
@@ -529,14 +560,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php else: ?>
                     <!-- WEEK REGISTRATION -->
                     <form method="post" class="term-week-form">
-                        <h3>Week Registration</h3>
+                       <h3><i class='bx bx-calendar-check'></i> Week Registration</h3>
 
                         <div class="term-week-header">
                             <div>
                                 <strong>Term <?= $current_term['term_number'] ?></strong><br>
                                 <?= $current_term['start_date'] ?> to <?= $current_term['end_date'] ?>
                             </div>
-                            <button type="button" class="term-week-edit-btn" onclick="showEditPopup()">Edit Term</button>
+                                <button type="button" class="term-week-edit-btn" onclick="showEditPopup()"><i class='bx bx-edit'></i> Edit Term</button>
                         </div>
 
                         <label for="week_number">Week Number (Suggested)</label>
@@ -548,17 +579,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <input type="hidden" name="selected_day" value="<?= $suggested_day ?>">
 
                         <label>
-                            <input type="checkbox" name="is_holiday"> Mark as Public Holiday
+                        <input type="checkbox" name="is_holiday"> <i class='bx bx-flag'></i> Mark as Public Holiday
                         </label>
 
-                        <button type="submit" name="register_day">Register Day</button>
+
+                        <button type="submit" name="register_day"><i class='bx bx-calendar-plus'></i> Register Day</button>
                     </form>
 
                     <!-- EDIT TERM POP-UP FORM -->
                     <div class="term-week-popup" id="termEditPopup">
                         <span class="term-week-popup-close" onclick="closeEditPopup()">&times;</span>
                         <form method="post" class="term-week-form">
-                            <h3>Edit Current Term</h3>
+                            <h3><i class='bx bx-edit'></i> Edit Current Term</h3>
 
                             <label for="edit_start_date">Start Date</label>
                             <input type="date" name="edit_start_date" id="edit_start_date" 
@@ -578,17 +610,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php include '../includes/footer.php'; ?>
 
-    <script>
-        // Real-time clock
-        function updateClock() {
-            const clockElement = document.getElementById('realTimeClock');
-            if (clockElement) {
-                const now = new Date();
-                clockElement.textContent = now.toLocaleTimeString();
-            }
-        }
-        updateClock();
-        setInterval(updateClock, 1000);
-    </script>
-</body>
+<script>
+  if (window.history.replaceState) {
+    window.history.replaceState(null, null, window.location.href);
+  }
+
+  function showEditPopup() {
+    document.getElementById('termEditPopup').style.display = 'block';
+  }
+
+  function closeEditPopup() {
+    document.getElementById('termEditPopup').style.display = 'none';
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+      const clockElement = document.getElementById('realTimeClock');
+      if (clockElement) { // removed window.innerWidth check to show clock on all devices
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        clockElement.textContent = timeString;
+      }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const parent = btn.parentElement;
+
+        document.querySelectorAll(".dropdown").forEach(drop => {
+          if (drop !== parent) {
+            drop.classList.remove("open");
+          }
+        });
+
+        parent.classList.toggle("open");
+      });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('show');
+      overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+      sidebar.classList.remove('show');
+      overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+      clearTimeout(logoutTimer);
+      logoutTimer = setTimeout(() => {
+        // Silent logout - redirect to logout page
+        window.location.href = 'logout.php'; // Change to your logout URL
+      }, 300000); // 5 minutes
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+      document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
+  });
+</script>
+
 </html>

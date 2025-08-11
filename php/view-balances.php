@@ -249,52 +249,196 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <title>Student Balances</title>
-    <link rel="stylesheet" href="../style/style.css">
+    <link rel="stylesheet" href="../style/style-sheet.css">
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+<style>
+    /* Container for the whole view */
+.view-container {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    max-width: 1000px;
+    margin: 1rem auto;
+}
 
-    <style>
-        select {
-            padding: 8px 12px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            background-color: #f8f8f8;
-            font-size: 16px;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            cursor: pointer;
-            transition: border 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-        }
+.view-container h2 {
+    color: #1cc88a;
+    font-weight: 700;
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    text-align: center; /* center content inside h2 */
+    display: block;     /* block element to take full width */
+}
 
-        select:focus {
-            border-color: #007BFF;
-            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-            outline: none;
-        }
-    </style>
+.view-container h2 i {
+    color: #1cc88a;
+    font-size: 2rem;
+    vertical-align: middle; /* align icon with text vertically */
+    margin-right: 0.5rem;   /* space between icon and text */
+}
 
-    <script>
-        let typingTimer;
-        const debounceDelay = 1500;
 
-        function autoSubmit() {
-            clearTimeout(typingTimer);
-            typingTimer = setTimeout(() => {
-                document.getElementById('filterForm').submit();
-            }, debounceDelay);
-        }
+/* Filter form styles */
+#filterForm {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
 
-        function printBalances() {
-            const printContent = document.getElementById('balancesTable').outerHTML;
-            const newWin = window.open("", "_blank");
-            newWin.document.write("<html><head><title>Print Balances</title></head><body>");
-            newWin.document.write(printContent);
-            newWin.document.write("</body></html>");
-            newWin.document.close();
-            newWin.print();
-        }
-    </script>
+#filterForm label {
+    font-weight: 600;
+    color: #4e73df;
+    font-size: 1rem;
+    margin-right: 0.3rem;
+}
+
+#filterForm input[type="number"],
+#filterForm select {
+    padding: 0.4rem 0.8rem;
+    border: 1.8px solid #4e73df;
+    border-radius: 6px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+    min-width: 120px;
+}
+
+#filterForm input[type="number"]:focus,
+#filterForm select:focus {
+    border-color: #1cc88a;
+}
+
+/* Print button with icon */
+#filterForm button {
+    background: linear-gradient(135deg, #4e73df, #1cc88a);
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    color: white;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s ease;
+}
+
+#filterForm button:hover {
+    background: linear-gradient(135deg, #1cc88a, #4e73df);
+}
+
+#filterForm button i {
+    font-size: 1.5rem;
+}
+
+/* Table styling */
+#balancesTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+#balancesTable th,
+#balancesTable td {
+    border: 1px solid #ddd;
+    padding: 0.6rem 0.8rem;
+    text-align: center;
+}
+
+#balancesTable thead {
+    background-color: #4e73df;
+    color: white;
+}
+
+#balancesTable tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+#balancesTable tbody tr:hover {
+    background-color: #e6f7f1;
+    cursor: default;
+}
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch; /* for smooth scrolling on iOS */
+  border: 1px solid #ccc; /* optional: border to show the container */
+  box-sizing: border-box;
+}
+
+
+/* Responsive for smaller screens */
+/* General page styles (your existing styles would be here) */
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  /* Hide sidebar on small screens */
+  #sidebar {
+    display: none !important;
+  }
+
+  /* Make main content full width */
+  main.content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    padding: 10px;
+  }
+
+  /* Table: allow horizontal scroll */
+  #balancesTable {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* Form controls: stack vertically */
+  form#filterForm {
+    flex-direction: column !important;
+    gap: 15px !important;
+  }
+
+  form#filterForm label,
+  form#filterForm input,
+  form#filterForm select,
+  form#filterForm button {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Center the h2 and icon */
+  h2 {
+    text-align: center;
+  }
+
+  /* Optional: adjust print button size */
+  form#filterForm button {
+    font-size: 1.5rem;
+    padding: 10px;
+  }
+    .table-responsive {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Smaller font sizes on very small screens */
+  h2 {
+    font-size: 1.4rem;
+  }
+
+  form#filterForm button {
+    font-size: 1.3rem;
+    padding: 8px;
+  }
+}
+
+
+</style>
 </head>
 
 <body>
@@ -303,7 +447,7 @@ $conn->close();
     <?php include '../includes/sidebar.php'; ?>
     <main class="content">
         <div class="view-container">
-            <h2>Student Balances</h2>
+            <h2><i class='bx bxs-wallet'></i> Student Balances</h2>
 
             <form method="GET" action="" id="filterForm" style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <label for="balance_filter">Balance</label>
@@ -321,8 +465,8 @@ $conn->close();
 
                 <button type="button" onclick="printBalances()"><i class='bx bx-printer' style="font-size: 20px;"></i></button>
             </form>
-
-            <table id="balancesTable" border="1">
+            <div id="balancesTable">
+                            <table id="balancesTable" border="1">
                 <thead>
                 <tr>
                     <th>Adm</th>
@@ -363,9 +507,95 @@ $conn->close();
                 <?php endif; ?>
                 </tbody>
             </table>
+            </div>
         </div>
     </main>
 </div>
 <?php include '../includes/footer.php'; ?>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // ===== Real-time clock =====
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ===== Dropdowns: only one open =====
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    // ===== Sidebar toggle for mobile =====
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    // ===== Close sidebar on outside click =====
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    // ===== Auto logout after 30 seconds inactivity (no alert) =====
+    let logoutTimer;
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            window.location.href = 'logout.php'; // Adjust your logout URL here
+        }, 300000); // 5 minutes
+    }
+
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    resetLogoutTimer();
+});
+
+// ===== Auto-submit debounce and print function =====
+let typingTimer;
+const debounceDelay = 1500;
+
+function autoSubmit() {
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+        document.getElementById('filterForm').submit();
+    }, debounceDelay);
+}
+
+function printBalances() {
+    const printContent = document.getElementById('balancesTable').outerHTML;
+    const newWin = window.open("", "_blank");
+    newWin.document.write("<html><head><title>Print Balances</title></head><body>");
+    newWin.document.write(printContent);
+    newWin.document.write("</body></html>");
+    newWin.document.close();
+    newWin.print();
+}
+</script>
+
 </body>
 </html>

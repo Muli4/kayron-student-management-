@@ -1,4 +1,9 @@
 <?php
+session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: ../index.php");
+    exit();
+}
 include '../php/db.php';
 
 $lunch_full_day = 70;
@@ -281,314 +286,408 @@ if (isset($_GET['ajax'])) {
 <head>
     <title>Lunch Payment Tracker</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="../style/style.css">
-    <link rel="website icon" type="png" href="photos/Logo.jpg">
-    <style>
-        /* Tracker Title */
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
+<style>
+    /* Lunch Payment Tracker Styles */
+
 .tracker-title {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #333;
-    margin-bottom: 20px;
-    text-align: center;
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-weight: 700;
+  color: #004080;
 }
 
-/* Tracker Container */
 .tracker-container {
-    background: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.1);
-    max-width: 900px;
-    margin: 0 auto 40px auto;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+  background: #f9faff;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
 }
 
-/* Tracker Form */
 .tracker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    align-items: center;
-    margin-bottom: 25px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
 }
 
 .tracker label {
-    flex: 0 0 100px;
-    font-weight: 600;
-    color: #555;
+  font-weight: 600;
+  color: #333;
+  min-width: 90px;
 }
 
 .tracker select,
 .tracker input[type="text"] {
-    flex: 1 1 200px;
-    padding: 8px 12px;
-    border: 1.8px solid #ccc;
-    border-radius: 5px;
-    font-size: 1rem;
-    transition: border-color 0.3s ease;
+  padding: 6px 10px;
+  font-size: 1rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  width: 220px;
+  transition: border-color 0.3s ease;
 }
 
 .tracker select:focus,
 .tracker input[type="text"]:focus {
-    border-color: #007bff;
-    outline: none;
+  border-color: #007acc;
+  outline: none;
 }
 
-/* Search Wrapper and Suggestions */
 .search-wrapper {
-    position: relative;
-    flex: 1 1 300px;
+  position: relative;
+  width: 220px;
 }
 
 #suggestions {
-    position: absolute;
-    top: 105%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1.8px solid #ccc;
-    border-top: none;
-    max-height: 180px;
-    overflow-y: auto;
-    border-radius: 0 0 5px 5px;
-    z-index: 999;
-    display: none;
+  position: absolute;
+  top: 38px;
+  left: 0;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  z-index: 1000;
+  display: none;
 }
 
 .suggestion-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: background-color 0.2s;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+  color: #222;
 }
 
 .suggestion-item:hover {
-    background-color: #f0f8ff;
+  background-color: #007acc;
+  color: #fff;
 }
 
-/* Pay Button */
 #pay-btn {
-    padding: 10px 25px;
-    background-color: #007bff;
-    color: white;
-    font-weight: 600;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    flex: 0 0 auto;
-    transition: background-color 0.3s ease;
+  background-color: #007acc;
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  font-size: 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  height: 38px;
 }
 
 #pay-btn:hover {
-    background-color: #0056b3;
+  background-color: #005fa3;
 }
 
-/* Message Box */
-#message-box div {
-    padding: 12px 15px;
-    margin-bottom: 20px;
-    border-radius: 6px;
-    font-weight: 600;
-}
+/* Tracker results table */
 
-.summary.unpaid {
-    background-color: #ffe6e6;
-    color: #cc0000;
-    border: 1.5px solid #cc0000;
-}
-
-.summary.paid {
-    background-color: #e6ffe6;
-    color: #008000;
-    border: 1.5px solid #008000;
-}
-
-/* Lunch Table */
 .lunch-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.95rem;
 }
 
 .lunch-table th,
 .lunch-table td {
-    border: 1.5px solid #ddd;
-    padding: 10px;
-    text-align: center;
-    font-size: 0.9rem;
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .lunch-table th {
-    background-color: #f7f7f7;
-    font-weight: 700;
-    color: #444;
+  background-color: #007acc;
+  color: white;
+  font-weight: 600;
 }
 
+.lunch-table td.paid {
+  color: #155724;
+  font-weight: bold;
+}
+
+.lunch-table td.partial {
+  color: #856404;
+  font-weight: bold;
+}
+
+.lunch-table td.unpaid {
+  color: #721c24;
+  font-weight: bold;
+}
+
+.lunch-table td.highlight-day,
 .lunch-table tr.highlight-week {
-    background-color: #fff8dc; /* light yellow */
+  border: 2px solid #004080;
 }
-
-.lunch-table td.highlight-day {
-    background-color: #f0e68c; /* khaki */
+.lunch-table td.highlight-day{
+    background-color: #007acc;
 }
-
-/* Paid / Partial / Unpaid cells */
-.paid {
-    color: #155724;
-    font-weight: 700;
-}
-
-.partial {
-    color: #856404;
-    font-weight: 700;
-}
-
-.unpaid {
-    color: #721c24;
-    font-weight: 700;
-}
-
-/* Totals and Carry Rows */
 .totals-row td {
-    font-weight: 700;
-    background-color: #e2e3e5;
+  font-weight: 700;
+  background-color: #e9ecef;
 }
 
 .carry-row td {
-    font-style: italic;
-    color: #666;
-    background-color: #f9f9f9;
+  font-style: italic;
+  color: #555;
+  background-color: #f1f3f5;
+}
+
+/* Summary messages */
+.summary {
+  font-size: 1rem;
+  padding: 10px 15px;
+  border-radius: 5px;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+.summary.unpaid {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.summary.paid {
+  background-color: #d4edda;
+  color: #155724;
 }
 
 /* Pagination */
 .pagination {
-    margin-top: 20px;
-    text-align: center;
+  margin-top: 1rem;
+  text-align: center;
+  user-select: none;
 }
 
 .pagination a {
-    display: inline-block;
-    margin: 0 8px;
-    padding: 8px 14px;
-    background-color: #007bff;
-    color: white;
-    border-radius: 5px;
-    cursor: pointer;
-    text-decoration: none;
-    font-weight: 600;
-    transition: background-color 0.3s ease;
+  display: inline-block;
+  margin: 0 8px;
+  padding: 6px 14px;
+  border-radius: 5px;
+  background-color: #007acc;
+  color: white;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
 }
 
-.pagination a.disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-    pointer-events: none;
+.pagination a.disabled,
+.pagination a.disabled:hover {
+  background-color: #ccc;
+  cursor: default;
+  color: #666;
 }
 
 .pagination a:hover:not(.disabled) {
-    background-color: #0056b3;
+  background-color: #005fa3;
 }
 
-/* Modal */
+/* Modal styles */
 .modal {
-    display: none; /* Hidden by default */
-    position: fixed;
-    z-index: 1050;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    background-color: rgba(0,0,0,0.4);
-    padding-top: 60px;
+  display: none; /* Hidden by default */
+  position: fixed; 
+  z-index: 1500; 
+  left: 0;
+  top: 0;
+  width: 100%; 
+  height: 100%; 
+  overflow: auto; 
+  background-color: rgba(0,0,0,0.5); /* Black with opacity */
 }
 
 .modal-content {
-    background-color: #fefefe;
-    margin: auto;
-    border-radius: 8px;
-    padding: 20px 30px;
-    border: 1.5px solid #888;
-    width: 400px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    position: relative;
+  background-color: #fff;
+  margin: 10% auto;
+  padding: 20px 30px;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90%;
+  position: relative;
+  box-shadow: 0 0 10px rgba(0,0,0,0.25);
 }
 
 #close-modal {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    position: absolute;
-    right: 15px;
-    top: 10px;
-    transition: color 0.3s;
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #444;
+  cursor: pointer;
+  transition: color 0.2s ease;
 }
 
 #close-modal:hover {
-    color: #000;
+  color: #007acc;
 }
 
 .modal-header {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 15px;
-    color: #333;
-    text-align: center;
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  color: #004080;
+  text-align: center;
 }
 
-/* Modal Form */
 .form-group {
-    margin-bottom: 15px;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .form-group label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 600;
-    color: #444;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
 }
 
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group select {
-    width: 100%;
-    padding: 8px 12px;
-    border-radius: 5px;
-    border: 1.8px solid #ccc;
-    font-size: 1rem;
-    transition: border-color 0.3s ease;
+  padding: 8px 12px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
 }
 
 .form-group input[type="text"]:focus,
 .form-group input[type="number"]:focus,
 .form-group select:focus {
-    border-color: #007bff;
-    outline: none;
+  border-color: #007acc;
+  outline: none;
 }
 
 #submit-payment {
-    width: 100%;
-    padding: 10px 0;
-    background-color: #28a745;
-    border: none;
-    border-radius: 6px;
-    font-weight: 700;
-    color: white;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+  background-color: #007acc;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  font-size: 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 700;
+  width: 100%;
+  transition: background-color 0.3s ease;
 }
 
 #submit-payment:hover {
-    background-color: #1e7e34;
+  background-color: #005fa3;
+}
+/* Responsive Media Queries */
+
+/* Medium devices (tablets, 768px and up) */
+@media (max-width: 768px) {
+  .tracker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tracker label,
+  .tracker select,
+  .tracker input[type="text"],
+  #pay-btn {
+    width: 100%;
+  }
+
+  #pay-btn {
+    margin-top: 10px;
+  }
+
+  .search-wrapper {
+    width: 100%;
+  }
+
+  #suggestions {
+    max-height: 150px;
+  }
+
+  .lunch-table {
+    font-size: 0.85rem;
+  }
+
+  .modal-content {
+    width: 90%;
+    margin: 20% auto;
+  }
 }
 
-    </style>
+/* Small devices (phones, 480px and below) */
+@media (max-width: 480px) {
+  .tracker-container {
+    padding: 0.5rem;
+  }
+
+  .tracker-title {
+    font-size: 1.4rem;
+  }
+
+  .tracker label {
+    font-size: 0.9rem;
+    min-width: auto;
+    margin-bottom: 4px;
+  }
+
+  .tracker select,
+  .tracker input[type="text"] {
+    font-size: 0.9rem;
+  }
+
+  #pay-btn {
+    font-size: 0.95rem;
+    padding: 8px 12px;
+  }
+
+  .lunch-table th,
+  .lunch-table td {
+    padding: 6px 5px;
+  }
+
+  .lunch-table {
+    font-size: 0.8rem;
+  }
+
+  /* Make the table horizontally scrollable on small screens */
+  .lunch-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* Modal tweaks */
+  .modal-content {
+    width: 95%;
+    margin: 30% auto;
+    padding: 15px 20px;
+  }
+
+  #close-modal {
+    font-size: 20px;
+    top: 6px;
+    right: 12px;
+  }
+}
+
+</style>
 </head>
 <body>
 
 <?php include '../includes/header.php'; ?>
-<div class="dashboard-container" style="position: relative; overflow: visible;">
+<div class="dashboard-container">
 <?php include '../includes/sidebar.php'; ?>
 <main class="content">
         <h2 class="tracker-title">Lunch Payment Tracker</h2>
@@ -768,8 +867,72 @@ $(document).ready(function () {
 
 });
 </script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
 
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
 
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
 
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            // Silent logout - redirect to logout page
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 5 minutes
+    }
+
+    // Reset timer on user activity
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    // Start the timer when page loads
+    resetLogoutTimer();
+});
+</script>
 </body>
 </html>
