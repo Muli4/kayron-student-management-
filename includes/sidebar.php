@@ -21,7 +21,7 @@
             </a>
             <ul class="dropdown-content">
                 <li><a href="./view-balances.php"><i class='bx bx-dollar-circle'></i> View Balances</a></li>
-                <li><a href="./make-payments.php"><i class='bx bx-credit-card-front'></i> Pay Fees</a></li>
+                <li><a href="./others.php"><i class='bx bx-credit-card-front'></i> Pay Fees</a></li>
                 <li><a href="./purchase.php"><i class='bx bx-shopping-bag'></i> Buy Book/Uniform</a></li>
             </ul>
         </li>

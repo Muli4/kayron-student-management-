@@ -15,24 +15,31 @@ INSERT INTO administration(username, password, email, role) VALUES
 ('patricia', SHA2('pasha2020', 256), 'pasha2020@gmail.com', 'admin'),
 ('Emmaculate', SHA2('Emma2020', 256), 'immah2008@gmail.com', 'admin'),
 ('admin', SHA2('admin2020', 256), 'jonesmusyoki.jm@gmail.com', 'admin'),
-('maurice', SHA2('maurice123', 256),'mauricemuli730@gmail.com', 'teacher');
+('maurice', SHA2('maurice123', 256),'mauricemuli730@gmail.com', 'admin');
 
 
 
 CREATE TABLE student_records (
-    admission_no VARCHAR(15) NOT NULL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    admission_no VARCHAR(20) NOT NULL UNIQUE,
     birth_cert VARCHAR(20),
-    name VARCHAR(50) NOT NULL,
+    name VARCHAR(100) NOT NULL,
     dob DATE,
     gender ENUM('male', 'female') NOT NULL,
     student_photo LONGBLOB,
-    class ENUM('babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6') NOT NULL,
-    term ENUM('term1','term2','term3') NOT NULL,
-    religion ENUM('christian','muslim','other'),
-    guardian VARCHAR(20) NOT NULL,
-    phone BIGINT NOT NULL,
+    class ENUM(
+        'babyclass', 'intermediate', 'pp1', 'pp2',
+        'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'
+    ) NOT NULL,
+    term ENUM('term1', 'term2', 'term3') NOT NULL,
+    religion ENUM('christian', 'muslim', 'other'),
+    guardian VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    alt_phone VARCHAR(20), -- <-- new field for alternate phone number
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
 
 CREATE TABLE graduated_students (
     admission_no VARCHAR(20) PRIMARY KEY,
@@ -108,29 +115,31 @@ CREATE TABLE lunch_fee_transactions (
 
 
 CREATE TABLE others (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    receipt_number VARCHAR(50) NOT NULL,
-    admission_no VARCHAR(50) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    term ENUM('term1', 'term2', 'term3') DEFAULT NULL,
-    fee_type ENUM('Admission', 'Activity', 'Exam', 'Interview') NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
-    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
-    INDEX (admission_no)
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  receipt_number VARCHAR(50) NOT NULL,
+  admission_no VARCHAR(50) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  term ENUM('term1','term2','term3') DEFAULT NULL,
+  fee_type ENUM('Admission','Activity','Exam','Interview','Prize Giving','Graduation') NOT NULL,
+  total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  balance DECIMAL(10,2) AS (total_amount - amount_paid) STORED NOT NULL,
+  payment_type ENUM('Cash','mpesa','bank_transfer') NOT NULL,
+  payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_recurring TINYINT(1) NOT NULL DEFAULT 0
 );
 
 CREATE TABLE other_transactions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    others_id INT NOT NULL, -- Link to the main others table
-    amount DECIMAL(10,2) NOT NULL,
-    payment_type ENUM('Cash', 'mpesa', 'bank_transfer') NOT NULL,
-    receipt_number VARCHAR(50) NOT NULL,
-    transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status ENUM('Completed', 'Pending', 'Reversed') DEFAULT 'Completed',
-    FOREIGN KEY (others_id) REFERENCES others(id) ON DELETE CASCADE
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  others_id INT NOT NULL,
+  amount_paid DECIMAL(10,2) NOT NULL,
+  payment_type ENUM('Cash','mpesa','bank_transfer') NOT NULL,
+  receipt_number VARCHAR(50) NOT NULL,
+  transaction_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status ENUM('Completed','Pending','Reversed') DEFAULT 'Completed',
+  FOREIGN KEY (others_id) REFERENCES others(id) ON DELETE CASCADE
 );
+
 
 
 CREATE TABLE book_prices (
@@ -245,10 +254,11 @@ CREATE TABLE days (
 );
 
 CREATE TABLE attendance (
-    admission_no VARCHAR(15) NOT NULL,
-    day_id INT NOT NULL,
-    status ENUM('Present','Absent') NOT NULL DEFAULT 'Absent',
-    PRIMARY KEY (admission_no, day_id),
-    FOREIGN KEY (admission_no) REFERENCES student_records(admission_no) ON DELETE CASCADE,
-    FOREIGN KEY (day_id) REFERENCES days(id) ON DELETE CASCADE
+    admission_no VARCHAR(20),
+    term_number INT,
+    week_number INT,
+    day_name VARCHAR(10),
+    status ENUM('Present', 'Absent'),
+    PRIMARY KEY (admission_no, term_number, week_number, day_name)
 );
+

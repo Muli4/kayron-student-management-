@@ -6,20 +6,48 @@ if (!isset($_SESSION['username'])) {
 }
 include '../php/db.php';
 
+// Define class options and selected values early
+$classes = ['babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6'];
+$selected_class = $_GET['class'] ?? '';
+$selected_day_id = $_GET['day_id'] ?? null;
+
 // ===================== SAVE ATTENDANCE =====================
-if($_SERVER['REQUEST_METHOD']=='POST'){
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $day_id = intval($_POST['day_id']);
     $attendance = $_POST['attendance'] ?? [];
 
-    foreach($attendance as $admission_no=>$status){
+    // Fetch day details
+    $dayQuery = $conn->prepare("
+        SELECT d.day_name, w.week_number, t.term_number
+        FROM days d
+        JOIN weeks w ON d.week_id = w.id
+        JOIN terms t ON w.term_id = t.id
+        WHERE d.id = ?
+    ");
+    $dayQuery->bind_param("i", $day_id);
+    $dayQuery->execute();
+    $dayResult = $dayQuery->get_result();
+
+    if ($dayResult->num_rows === 0) {
+        echo "<script>alert('Invalid day selected.'); window.history.back();</script>";
+        exit;
+    }
+
+    $dayData = $dayResult->fetch_assoc();
+    $day_name = $dayData['day_name'];
+    $week_number = $dayData['week_number'];
+    $term_number = $dayData['term_number'];
+
+    foreach ($attendance as $admission_no => $status) {
         $stmt = $conn->prepare("
-            INSERT INTO attendance (admission_no, day_id, status) 
-            VALUES (?,?,?)
-            ON DUPLICATE KEY UPDATE status=VALUES(status)
+            INSERT INTO attendance (admission_no, term_number, week_number, day_id, day_name, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE status = VALUES(status)
         ");
-        $stmt->bind_param("sis", $admission_no, $day_id, $status);
+        $stmt->bind_param("siiiss", $admission_no, $term_number, $week_number, $day_id, $day_name, $status);
         $stmt->execute();
     }
+
     echo "<script>alert('Attendance Saved Successfully!'); window.location.href='attendance_register.php?class={$_POST['class']}&day_id={$day_id}';</script>";
     exit;
 }
@@ -35,12 +63,8 @@ $daysQuery = "
 ";
 $daysRes = $conn->query($daysQuery);
 $days = $daysRes->fetch_all(MYSQLI_ASSOC);
-
-$selected_day_id = $_GET['day_id'] ?? ($days[0]['day_id'] ?? null);
-
-$classes = ['babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6'];
-$selected_class = $_GET['class'] ?? '';
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -185,6 +209,7 @@ $selected_class = $_GET['class'] ?? '';
 }
 
 </style>
+
 </head>
 <body>
 <?php include '../includes/header.php'; ?>
@@ -193,7 +218,6 @@ $selected_class = $_GET['class'] ?? '';
     <?php include '../includes/sidebar.php'; ?>
     <main class="content">
 
-        
         <div class="attendance-container">
             <h2>Daily Attendance Register</h2>
 
@@ -203,7 +227,9 @@ $selected_class = $_GET['class'] ?? '';
                 <select name="class" onchange="this.form.submit()">
                     <option value="">--Select Class--</option>
                     <?php foreach($classes as $c): ?>
-                        <option value="<?= $c ?>" <?= $selected_class==$c?'selected':'' ?>><?= ucfirst($c) ?></option>
+                        <option value="<?= $c ?>" <?= $selected_class == $c ? 'selected' : '' ?>>
+                            <?= ucfirst($c) ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
 
@@ -212,7 +238,7 @@ $selected_class = $_GET['class'] ?? '';
                     <?php foreach($days as $d): 
                         $label = "Term {$d['term_number']} ({$d['year']}) - Week {$d['week_number']} - {$d['day_name']}";
                     ?>
-                        <option value="<?= $d['day_id'] ?>" <?= $selected_day_id==$d['day_id']?'selected':'' ?>>
+                        <option value="<?= $d['day_id'] ?>" <?= $selected_day_id == $d['day_id'] ? 'selected' : '' ?>>
                             <?= $label ?>
                         </option>
                     <?php endforeach; ?>
@@ -221,7 +247,6 @@ $selected_class = $_GET['class'] ?? '';
 
             <?php
             if($selected_class && $selected_day_id){
-                // Header Info
                 $dayDetails = array_values(array_filter($days, fn($d)=>$d['day_id']==$selected_day_id))[0] ?? null;
                 if($dayDetails){
                     echo "<p><strong>Term:</strong> Term {$dayDetails['term_number']} ({$dayDetails['year']}) |
@@ -229,7 +254,6 @@ $selected_class = $_GET['class'] ?? '';
                         <strong>Day:</strong> {$dayDetails['day_name']}</p>";
                 }
 
-                // Students Ordered by Admission Number
                 $stmt = $conn->prepare("
                     SELECT admission_no, name 
                     FROM student_records 
@@ -240,11 +264,11 @@ $selected_class = $_GET['class'] ?? '';
                 $stmt->execute();
                 $students = $stmt->get_result();
 
-                if($students->num_rows>0){
+                if($students->num_rows > 0){
 
                     // Existing Attendance
-                    $attStmt = $conn->prepare("SELECT admission_no, status FROM attendance WHERE day_id=?");
-                    $attStmt->bind_param("i", $selected_day_id);
+                    $attStmt = $conn->prepare("SELECT admission_no, status FROM attendance WHERE term_number=? AND week_number=? AND day_name=?");
+                    $attStmt->bind_param("iis", $dayDetails['term_number'], $dayDetails['week_number'], $dayDetails['day_name']);
                     $attStmt->execute();
                     $attResult = $attStmt->get_result();
                     $existingAttendance = [];
@@ -264,14 +288,14 @@ $selected_class = $_GET['class'] ?? '';
                                 <th>Absent</th>
                                 <th>Status</th>
                             </tr>';
-                    
-                    $i=1; $studentsToMark=0;
-                    while($row=$students->fetch_assoc()){
+
+                    $i = 1; $studentsToMark = 0;
+                    while($row = $students->fetch_assoc()){
                         $admission = $row['admission_no'];
                         $marked = isset($existingAttendance[$admission]);
                         $status = $existingAttendance[$admission] ?? '';
-                        $presentChecked = $status=="Present"?"checked":""; 
-                        $absentChecked = $status=="Absent"?"checked":""; 
+                        $presentChecked = $status == "Present" ? "checked" : ""; 
+                        $absentChecked = $status == "Absent" ? "checked" : ""; 
                         $disabled = $marked ? "disabled" : "";
 
                         if(!$marked) $studentsToMark++;
@@ -286,13 +310,15 @@ $selected_class = $_GET['class'] ?? '';
                             </tr>";
                         $i++;
                     }
+
                     echo '</table>';
 
-                    if($studentsToMark>0){
+                    if($studentsToMark > 0){
                         echo '<button type="submit" class="btn-save">Save Attendance</button>';
                     } else {
                         echo '<p style="color:green;font-weight:bold;">Attendance already marked for all students.</p>';
                     }
+
                     echo '</form>';
                 } else {
                     echo '<p style="color:red;">No students found for this class.</p>';

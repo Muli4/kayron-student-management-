@@ -105,7 +105,7 @@
         <a href="../tables/administration.php" class="master-panel__link">Administration</a>
         <a href="../tables/student_records.php" class="master-panel__link">Student Records</a>
         <a href="../tables/graduated_students.php" class="master-panel__link">Graduated Students</a>
-        <a href="../tables/school_fees.php" class="master-panel__link">School Fees</a>
+        <a href="../tables/edit_fees.php" class="master-panel__link">School Fees</a>
         <a href="../tables/school_fee_transactions.php" class="master-panel__link">School Fee Transactions</a>
         <a href="../tables/lunch_fees.php" class="master-panel__link">Lunch Fees</a>
         <a href="../tables/lunch_fee_transactions.php" class="master-panel__link">Lunch Fee Transactions</a>
@@ -120,7 +120,7 @@
         <a href="../tables/terms.php" class="master-panel__link">Terms</a>
         <a href="../tables/weeks.php" class="master-panel__link">Weeks</a>
         <a href="../tables/days.php" class="master-panel__link">Days</a>
-        <a href="../tables/attendance.php" class="master-panel__link">Attendance</a>
+        <a href="../tables/edit_attendance.php" class="master-panel__link">Attendance</a>
         <a href="logout.php"class="master-panel__link"><i class='bx bx-log-out'></i> Logout</a>
     </div>
 </body>

@@ -20,7 +20,7 @@ if (isset($_GET['ajax'])) {
         exit;
     }
 
-    // === Term Info ===
+    // Fetch term start and end dates
     $term_stmt = $conn->prepare("SELECT start_date, end_date FROM terms WHERE id = ?");
     $term_stmt->bind_param("i", $selected_term);
     $term_stmt->execute();
@@ -31,7 +31,7 @@ if (isset($_GET['ajax'])) {
     $total_weeks = ceil((strtotime($end_date) - strtotime($start_date) + 1) / (60*60*24*7));
     $day_order = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
 
-    // === Attendance ===
+    // Load attendance data indexed by week and day (lowercase)
     $attendance = [];
     $att_stmt = $conn->prepare("
         SELECT d.day_name, w.week_number, a.status, d.is_public_holiday
@@ -51,7 +51,7 @@ if (isset($_GET['ajax'])) {
     }
     $att_stmt->close();
 
-    // === Current Term Payments ===
+    // Load lunch payments data indexed by week_number
     $lunch_data = [];
     $payments_stmt = $conn->prepare("
         SELECT week_number, monday, tuesday, wednesday, thursday, friday
@@ -67,7 +67,7 @@ if (isset($_GET['ajax'])) {
     }
     $payments_stmt->close();
 
-    // === Carry Forward (Credit Only) ===
+    // Calculate carry forward credit from previous terms
     $carry_stmt = $conn->prepare("
         SELECT IFNULL(SUM(carry_forward),0) AS carry
         FROM lunch_fees
@@ -79,7 +79,7 @@ if (isset($_GET['ajax'])) {
     $carry_stmt->fetch();
     $carry_stmt->close();
 
-    // === Previous Term Underpayment Detection ===
+    // Check unpaid balance from previous term (if any)
     $prev_term_id = 0;
     $prev_term_res = $conn->prepare("SELECT MAX(id) FROM terms WHERE id < ?");
     $prev_term_res->bind_param("i", $selected_term);
@@ -92,7 +92,6 @@ if (isset($_GET['ajax'])) {
     $has_prev_lunch = 0;
 
     if ($prev_term_id) {
-        // Check if student had any lunch fees recorded in the previous term
         $check_stmt = $conn->prepare("
             SELECT COUNT(*) FROM lunch_fees 
             WHERE admission_no = ? AND term_id = ?
@@ -104,7 +103,6 @@ if (isset($_GET['ajax'])) {
         $check_stmt->close();
 
         if ($has_prev_lunch > 0) {
-            // calculate unpaid balance logic
             $paid_stmt = $conn->prepare("
                 SELECT IFNULL(SUM(monday+tuesday+wednesday+thursday+friday),0)
                 FROM lunch_fees
@@ -146,33 +144,26 @@ if (isset($_GET['ajax'])) {
         }
     }
 
-    // === Determine Last Recorded Term, Week, and Day ===
     $last_term_id = $conn->query("SELECT MAX(id) AS last_term FROM terms")->fetch_assoc()['last_term'] ?? 0;
+
     $last_week_num = 0;
     $last_day_name = '';
-    if ($selected_term == $last_term_id) {
-        $row_week = $conn->query("SELECT MAX(week_number) AS last_week FROM weeks WHERE term_id = $last_term_id")->fetch_assoc();
-        $last_week_num = intval($row_week['last_week'] ?? 0);
 
-        $row_day = $conn->query("
-            SELECT day_name FROM days 
-            WHERE week_id = (SELECT id FROM weeks WHERE term_id = $last_term_id AND week_number = $last_week_num) 
-            ORDER BY id DESC LIMIT 1
-        ")->fetch_assoc();
-        $last_day_name = strtolower($row_day['day_name'] ?? '');
+    $today = date('Y-m-d');
+    if ($selected_term == $last_term_id && $today >= $start_date && $today <= $end_date) {
+        $days_since_start = (strtotime($today) - strtotime($start_date)) / (60 * 60 * 24);
+        $last_week_num = floor($days_since_start / 7) + 1;
+        $last_day_name = strtolower(date('l', strtotime($today)));
     }
 
-    // === Output Buffer ===
     $output = '';
 
-    // ✅ Show previous balance ONLY if previous term had lunch records
     if ($prev_term_id && $unpaid_balance > 0 && $has_prev_lunch > 0) {
         $output .= "<div class='summary unpaid'>
                         Previous Term Balance: KES {$unpaid_balance}
                     </div>";
     }
 
-    // === Render Table ===
     $credit_carry = $carry_forward;
     $term_total_paid = 0;
     $term_total_balance = 0;
@@ -226,22 +217,22 @@ if (isset($_GET['ajax'])) {
                     $term_total_paid += $lunch_full_day;
                     $credit_carry -= $lunch_full_day;
                 } elseif ($credit_carry > 0) {
-                    $row_html .= "<td class='partial {$highlight_day}'>{$credit_carry}</td>";
+                    $row_html .= "<td class='partial {$highlight_day}'>" . number_format($credit_carry, 2) . "</td>";
                     $week_total_paid += $credit_carry;
                     $term_total_paid += $credit_carry;
                     $week_balance += $lunch_full_day - $credit_carry;
                     $term_total_balance += $lunch_full_day - $credit_carry;
                     $credit_carry = 0;
                 } else {
-                    $row_html .= "<td class='unpaid {$highlight_day}'>X</td>";
+                    $row_html .= "<td class='unpaid {$highlight_day}'>x</td>";
                     $week_balance += $lunch_full_day;
                     $term_total_balance += $lunch_full_day;
                 }
             }
         }
 
-        $row_html .= "<td>{$week_total_paid}</td>";
-        $row_html .= "<td class='".($week_balance>0?'unpaid':'paid')."'>{$week_balance}</td>";
+        $row_html .= "<td>KES " . number_format($week_total_paid, 2) . "</td>";
+        $row_html .= "<td>KES " . number_format($week_balance, 2) . "</td>";
         $row_html .= "</tr>";
 
         if ($week_no >= $start_week && $week_no <= $end_week) {
@@ -249,36 +240,62 @@ if (isset($_GET['ajax'])) {
         }
     }
 
-    // Totals
-    $output .= "<tr class='totals-row'>
-            <td colspan='7'>Term Totals (Including Carry-Over)</td>
-            <td>{$term_total_paid}</td>
-            <td>{$term_total_balance}</td>
-          </tr>";
-
-    $carry_text = ($carry_forward > 0) 
-        ? "Previous Term Credit: {$carry_forward}" 
-        : "No Carry Forward from Previous Terms";
-
-    $output .= "<tr class='carry-row'>
-            <td colspan='9'>{$carry_text}</td>
-          </tr>";
-
     $output .= "</table>";
 
-    // Pagination
-    $total_pages = ceil($total_weeks / $rows_per_page);
-    $output .= "<div class='pagination'>";
-    $prev_page = $page - 1;
-    $next_page = $page + 1;
-    $output .= "<a class='".($page <= 1 ? 'disabled' : '')."' data-page='{$prev_page}'>&laquo; Previous</a>";
-    $output .= "<a class='".($page >= $total_pages ? 'disabled' : '')."' data-page='{$next_page}'>Next &raquo;</a>";
-    $output .= "</div>";
+    // Calculate current term unpaid lunch balance up to today (based on attendance & payments)
+    $current_term_balance = 0;
+    $per_day_fee = $lunch_full_day;
+
+    $day_map = ['monday'=>0, 'tuesday'=>1, 'wednesday'=>2, 'thursday'=>3, 'friday'=>4];
+
+    for ($week_no = 1; $week_no <= $total_weeks; $week_no++) {
+        foreach ($day_map as $day_name => $day_offset) {
+            // Calculate date of the day in current week
+            $week_start_date = date('Y-m-d', strtotime($start_date . " +".($week_no - 1)." weeks"));
+            $day_date = date('Y-m-d', strtotime($week_start_date . " +{$day_offset} days"));
+
+            if ($day_date > $today) {
+                // Skip future days
+                continue;
+            }
+
+            // Skip if holiday or attendance is absent
+            $day_att = $attendance[$week_no][$day_name] ?? ['status' => 'Not Marked', 'holiday' => 0];
+            if ($day_att['holiday'] == 1 || $day_att['status'] === 'Absent') {
+                continue;
+            }
+
+            // Check if lunch paid for this day in this week
+            $week_payment = $lunch_data[$week_no] ?? null;
+            $paid_amount = ($week_payment[$day_name] ?? 0);
+
+            if ($paid_amount <= 0) {
+                $current_term_balance += $per_day_fee;
+            }
+        }
+    }
+
+    // Show current term balance as of today for last term
+    if ($selected_term == $last_term_id && $today >= $start_date && $today <= $end_date) {
+        $output .= "<div class='summary unpaid'>
+            <strong>Current Term Balance as of Today:</strong> KES " . number_format($current_term_balance, 2) . "
+        </div>";
+    } else {
+        $output .= "<div class='summary paid'>
+            <strong>Total Paid:</strong> KES " . number_format($term_total_paid, 2) . "
+            <br><strong>Balance:</strong> KES " . number_format($term_total_balance, 2) . "
+        </div>";
+    }
 
     echo $output;
-    exit;
+
+    exit; // <<< Important to stop further output after AJAX response
 }
+
+// If not AJAX, here you would output your normal full page HTML & form for selecting students, terms, etc.
+// (not shown here)
 ?>
+
 
 
 <!DOCTYPE html>
@@ -681,7 +698,6 @@ if (isset($_GET['ajax'])) {
     right: 12px;
   }
 }
-
 </style>
 </head>
 <body>

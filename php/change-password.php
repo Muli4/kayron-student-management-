@@ -63,7 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Change Password</title>
-  <link rel="stylesheet" href="../style/style-sheet.css" />
+  <link rel="stylesheet" href="../style/sheet.css" />
   <link rel="website icon" type="png" href="../images/school-logo.jpg" />
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
   <style>

@@ -12,37 +12,63 @@ if ($term_result && $term_result->num_rows > 0) {
     $current_term = strtolower($row['term_number']); // e.g. 'term1', 'term2', 'term3'
 }
 
+// ===== Auto-generate next admission number with format KJS-###-0YY =====
+
+// Get last two digits of current year with leading zero
+$year_suffix = date('y');   // e.g. "25"
+$year_suffix = '0' . $year_suffix;  // e.g. "025"
+
+// Find last admission_no for this year
+$last_adm_result = $conn->query("SELECT admission_no FROM student_records WHERE admission_no LIKE 'KJS-%-$year_suffix' ORDER BY admission_no DESC LIMIT 1");
+
+$next_num = 1; // default increment if none found
+
+if ($last_adm_result && $last_adm_result->num_rows > 0) {
+    $row = $last_adm_result->fetch_assoc();
+    $last_adm = $row['admission_no'];
+    // Extract the 3-digit increment number part using regex
+    if (preg_match('/KJS-(\d{3})-0\d{2}/', $last_adm, $matches)) {
+        $last_num = (int)$matches[1];
+        $next_num = $last_num + 1;
+    }
+}
+
+$next_adm_no = 'KJS-' . str_pad($next_num, 3, '0', STR_PAD_LEFT) . '-' . $year_suffix;
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Get required fields
     $name = trim($_POST['name'] ?? '');
-    $admission_no = trim($_POST['admission_no'] ?? '');
+    $class = strtolower($_POST['class'] ?? '');
+    $gender = $_POST['gender'] ?? '';
+
+    // Auto-generated admission number
+    $admission_no = $next_adm_no;
+
+    // Optional fields
     $birth_cert = !empty($_POST['birth_cert']) ? trim($_POST['birth_cert']) : null;
     $dob = !empty($_POST['dob']) ? $_POST['dob'] : null;
-    $gender = $_POST['gender'] ?? '';
-    $class = strtolower($_POST['class'] ?? '');
     $term = $current_term;
     $religion = !empty($_POST['religion']) ? $_POST['religion'] : null;
-    $guardian = trim($_POST['guardian'] ?? $_POST['gurdian'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
+    $guardian = !empty($_POST['guardian']) ? trim($_POST['guardian']) : null;
+    $phone1 = !empty($_POST['phone1']) ? trim($_POST['phone1']) : null;
+    $phone2 = !empty($_POST['phone2']) ? trim($_POST['phone2']) : null;
+
+    // Combine phone numbers if both exist, separated by comma
+    if ($phone1 && $phone2) {
+        $phone = $phone1 . ',' . $phone2;
+    } elseif ($phone1) {
+        $phone = $phone1;
+    } elseif ($phone2) {
+        $phone = $phone2;
+    } else {
+        $phone = null;
+    }
 
     // Handle student photo blob
     $student_photo = null;
     if (isset($_FILES['student_photo']) && $_FILES['student_photo']['error'] === 0) {
         $student_photo = file_get_contents($_FILES['student_photo']['tmp_name']);
     }
-
-    // Check for duplicate admission number
-    $stmt_check = $conn->prepare("SELECT admission_no FROM student_records WHERE admission_no = ?");
-    $stmt_check->bind_param("s", $admission_no);
-    $stmt_check->execute();
-    $stmt_check->store_result();
-
-    if ($stmt_check->num_rows > 0) {
-        $_SESSION['message'] = "<div class='error-message'>Admission number already exists.</div>";
-        $stmt_check->close();
-        header("Location: add-student.php");
-        exit();
-    }
-    $stmt_check->close();
 
     // Fee structure
     $fee_structure = [
@@ -67,8 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         (admission_no, birth_cert, name, dob, gender, student_photo, class, term, religion, guardian, phone) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
-    // Bind parameters including blob with correct types and count
-    $null = NULL; // placeholder for blob
+    $null = null;
     $stmt->bind_param(
         "sssssbsssss",
         $admission_no,
@@ -76,7 +101,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $name,
         $dob,
         $gender,
-        $null,      // for blob
+        $null, // for BLOB
         $class,
         $term,
         $religion,
@@ -84,15 +109,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $phone
     );
 
-    // Send blob data if available
     if ($student_photo !== null) {
         $stmt->send_long_data(5, $student_photo);
     }
 
     if ($stmt->execute()) {
-        // Insert fee details
-        $stmt_fee = $conn->prepare("INSERT INTO school_fees (admission_no, birth_cert, class, term, total_fee, amount_paid, balance) 
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)");
+        // Insert fee record
+        $stmt_fee = $conn->prepare("INSERT INTO school_fees 
+            (admission_no, birth_cert, class, term, total_fee, amount_paid, balance) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt_fee->bind_param("ssssddd", $admission_no, $birth_cert, $class, $term, $total_fee, $amount_paid, $balance);
         $stmt_fee->execute();
         $stmt_fee->close();
@@ -107,6 +132,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     exit();
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -277,7 +303,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 <div class="form-group">
                     <label><i class='bx bxs-bookmark-alt-minus'></i> Admission No *</label>
-                    <input type="text" name="admission_no" placeholder="Admission Number" required>
+                    <input type="text" name="admission_no_display" value="<?= htmlspecialchars($next_adm_no) ?>" readonly>
                 </div>
 
                 <div class="form-group">
@@ -332,15 +358,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 </div>
 
                 <div class="form-group">
-                    <label><i class='bx bxs-shield-alt-2'></i> Guardian *</label>
-                    <input type="text" name="guardian" placeholder="Guardian Name" required>
+                    <label><i class='bx bxs-shield-alt-2'></i> Guardian </label>
+                    <input type="text" name="guardian" placeholder="Guardian Name">
                 </div>
 
                 <div class="form-group">
-                    <label><i class='bx bxs-phone'></i> Phone Number *</label>
-                    <input type="text" name="phone" placeholder="Phone Number" required>
+                    <label><i class='bx bxs-phone'></i> Phone Number </label>
+                    <input type="text" name="phone" placeholder="Phone Number">
                 </div>
-
+                <div class="form-group">
+                    <label>Alternate Phone</label>
+                    <input type="text" name="alt_phone" placeholder="Secondary Phone (Optional)">
+                </div>
                 <div class="form-group">
                     <label><i class='bx bxs-camera'></i> Passport</label>
                     <input type="file" name="student_photo">

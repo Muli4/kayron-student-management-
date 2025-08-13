@@ -13,48 +13,72 @@ if ($student_name !== '') {
     $likeName = "%" . $conn->real_escape_string($student_name) . "%";
 
     $query = "
-        SELECT receipt_number, payment_date AS date, 'Lunch fees' AS category, amount_paid, name, admission_no, payment_type FROM lunch_fee_transactions WHERE name LIKE '$likeName'
+        SELECT receipt_number, payment_date AS date, 'Lunch fees' AS category, amount_paid, name, admission_no, payment_type 
+        FROM lunch_fee_transactions 
+        WHERE name LIKE '$likeName'
+        
         UNION
-        SELECT receipt_number, payment_date, 'School fees', amount_paid, name, admission_no, payment_type FROM school_fee_transactions WHERE name LIKE '$likeName'
+        
+        SELECT receipt_number, payment_date, 'School fees', amount_paid, name, admission_no, payment_type 
+        FROM school_fee_transactions 
+        WHERE name LIKE '$likeName'
+        
         UNION
+        
         SELECT 
             ot.receipt_number, 
             ot.transaction_date AS date, 
             o.fee_type AS category, 
-            ot.amount, 
+            ot.amount_paid, 
             o.name, 
             o.admission_no, 
             ot.payment_type
         FROM other_transactions ot
         JOIN others o ON ot.others_id = o.id
         WHERE o.name LIKE '$likeName'
+        
         UNION
-        SELECT receipt_number, purchase_date, 'Book Purchase', amount_paid, name, admission_no, payment_type FROM book_purchases WHERE name LIKE '$likeName'
+        
+        SELECT receipt_number, purchase_date, 'Book Purchase', amount_paid, name, admission_no, payment_type 
+        FROM book_purchases 
+        WHERE name LIKE '$likeName'
+        
         UNION
-        SELECT receipt_number, purchase_date, 'Uniform Purchase', amount_paid, name, admission_no, payment_type FROM uniform_purchases WHERE name LIKE '$likeName'
+        
+        SELECT receipt_number, purchase_date, 'Uniform Purchase', amount_paid, name, admission_no, payment_type 
+        FROM uniform_purchases 
+        WHERE name LIKE '$likeName'
+        
         ORDER BY date DESC
     ";
 
+    // Run query and show error if it fails
     $result = $conn->query($query);
+    if (!$result) {
+        die("Query failed: " . $conn->error);
+    }
+
     while ($row = $result->fetch_assoc()) {
         $rn = $row['receipt_number'];
         $row['formatted_date'] = date('d/m/y h:i A', strtotime($row['date']));
+
         if (!isset($groupedReceipts[$rn])) {
             $groupedReceipts[$rn] = [
-                'student_name' => $row['name'],
-                'admission_no' => $row['admission_no'],
+                'student_name'   => $row['name'],
+                'admission_no'   => $row['admission_no'],
                 'payment_method' => $row['payment_type'],
-                'date' => $row['formatted_date'],
-                'items' => [],
-                'total' => 0
+                'date'           => $row['formatted_date'],
+                'items'          => [],
+                'total'          => 0
             ];
         }
-        // Use 'amount' if set, else fallback to 'amount_paid'
-        $amount = isset($row['amount']) ? $row['amount'] : $row['amount_paid'];
+
+        // Always prefer amount_paid (since all tables use it now)
+        $amount = $row['amount_paid'];
 
         $groupedReceipts[$rn]['items'][] = [
             'category' => $row['category'],
-            'amount' => $amount
+            'amount'   => $amount
         ];
         $groupedReceipts[$rn]['total'] += $amount;
     }
@@ -325,7 +349,6 @@ function printReceipt(receiptNumber, data) {
                     ${itemsHTML}
                 </table>
                 <div class="total">TOTAL: KES ${total.toFixed(2)}</div>
-                <div class="approved">Payment Approved By: <strong>emmaculate</strong></div>
                 <div class="thanks">Thank you for trusting in our school.<br>Always working to output the best!</div>
                 <div class="barcode">*${receiptNumber}*</div>
             </div>

@@ -5,38 +5,70 @@ require '../php/db.php';
 // Handle unpromote action
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unpromote_admission_no'])) {
     $admission_no = $conn->real_escape_string($_POST['unpromote_admission_no']);
-    
-    $res = $conn->query("SELECT * FROM graduated_students WHERE admission_no='$admission_no'");
-    if ($res && $res->num_rows === 1) {
-        $grad = $res->fetch_assoc();
 
-        $photo = isset($grad['student_photo']) ? $conn->real_escape_string($grad['student_photo']) : '';
-
-        $sql_insert = "INSERT INTO student_records
-            (admission_no, name, birth_cert, dob, gender, class, term, religion, guardian, phone, student_photo)
-            VALUES
-            (
-                '{$conn->real_escape_string($grad['admission_no'])}',
-                '{$conn->real_escape_string($grad['name'])}',
-                '{$conn->real_escape_string($grad['birth_certificate'])}',
-                '{$conn->real_escape_string($grad['dob'])}',
-                '{$conn->real_escape_string($grad['gender'])}',
-                '{$conn->real_escape_string($grad['class_completed'])}',
-                '{$conn->real_escape_string($grad['term'])}',
-                '{$conn->real_escape_string($grad['religion'])}',
-                '{$conn->real_escape_string($grad['guardian_name'])}',
-                '{$conn->real_escape_string($grad['phone'])}',
-                '$photo'
-            )";
-
-        if ($conn->query($sql_insert) === TRUE) {
-            $conn->query("DELETE FROM graduated_students WHERE admission_no='$admission_no'");
-            $_SESSION['msg'] = "Student has been unpromoted successfully.";
-        } else {
-            $_SESSION['msg'] = "An error occurred while unpromoting.";
-        }
+    // Check if student already exists in student_records
+    $check = $conn->query("SELECT 1 FROM student_records WHERE admission_no='$admission_no'");
+    if ($check && $check->num_rows > 0) {
+        $_SESSION['msg'] = "Student is already in student records.";
     } else {
-        $_SESSION['msg'] = "Graduate record not found.";
+        // Fetch from graduated_students
+        $res = $conn->query("SELECT * FROM graduated_students WHERE admission_no='$admission_no'");
+        if ($res && $res->num_rows === 1) {
+            $grad = $res->fetch_assoc();
+
+            $photo = isset($grad['student_photo']) ? $conn->real_escape_string($grad['student_photo']) : '';
+
+            // Validate enum fields
+            $valid_genders = ['male', 'female'];
+            $gender = strtolower(trim($grad['gender']));
+            if (!in_array($gender, $valid_genders)) {
+                $gender = 'male'; // default
+            }
+
+            $valid_classes = ['babyclass', 'intermediate', 'pp1', 'pp2', 'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'];
+            $class = strtolower(trim($grad['class_completed']));
+            if (!in_array($class, $valid_classes)) {
+                $class = 'babyclass'; // default
+            }
+
+            $valid_terms = ['term1', 'term2', 'term3'];
+            $term = strtolower(trim($grad['term']));
+            if (!in_array($term, $valid_terms)) {
+                $term = 'term1'; // default
+            }
+
+            $valid_religions = ['christian', 'muslim', 'other'];
+            $religion = strtolower(trim($grad['religion']));
+            if (!in_array($religion, $valid_religions)) {
+                $religion = 'other'; // default
+            }
+
+            $sql_insert = "INSERT INTO student_records
+                (admission_no, name, birth_cert, dob, gender, class, term, religion, guardian, phone, student_photo)
+                VALUES
+                (
+                    '{$conn->real_escape_string($grad['admission_no'])}',
+                    '{$conn->real_escape_string($grad['name'])}',
+                    '{$conn->real_escape_string($grad['birth_certificate'])}',
+                    '{$conn->real_escape_string($grad['dob'])}',
+                    '$gender',
+                    '$class',
+                    '$term',
+                    '$religion',
+                    '{$conn->real_escape_string($grad['guardian_name'])}',
+                    '{$conn->real_escape_string($grad['phone'])}',
+                    '$photo'
+                )";
+
+            if ($conn->query($sql_insert) === TRUE) {
+                $conn->query("DELETE FROM graduated_students WHERE admission_no='$admission_no'");
+                $_SESSION['msg'] = "Student has been unpromoted successfully.";
+            } else {
+                $_SESSION['msg'] = "An error occurred while unpromoting: " . $conn->error;
+            }
+        } else {
+            $_SESSION['msg'] = "Graduate record not found.";
+        }
     }
 
     header("Location: " . $_SERVER['PHP_SELF']);
@@ -53,6 +85,7 @@ if (isset($_SESSION['msg'])) {
 // Fetch graduates
 $result = $conn->query("SELECT * FROM graduated_students ORDER BY graduation_date DESC");
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">

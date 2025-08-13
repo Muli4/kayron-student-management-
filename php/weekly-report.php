@@ -13,10 +13,10 @@ $end_date = $_SESSION['end_date'] ?? '';
 unset($_SESSION['message']); // Clear message so it shows once
 
 $results = [
-    'school fees' => 0,
-    'lunch fees' => 0,
-    'others' => 0,
-    'books and uniform' => 0
+    'school fees'      => 0,
+    'lunch fees'       => 0,
+    'others'           => 0,
+    'books and uniform'=> 0
 ];
 $totalPaid = 0;
 
@@ -27,12 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$start_date_post || !$end_date_post) {
         $_SESSION['message'] = "Please select both start and end dates.";
-        header("Location: ".$_SERVER['PHP_SELF']);
+        header("Location: " . $_SERVER['PHP_SELF']);
         exit();
     } else {
         $_SESSION['start_date'] = $start_date_post;
         $_SESSION['end_date'] = $end_date_post;
-        header("Location: ".$_SERVER['PHP_SELF']);
+        header("Location: " . $_SERVER['PHP_SELF']);
         exit();
     }
 }
@@ -43,8 +43,17 @@ if ($start_date && $end_date) {
     $db_start = date('Y-m-d', strtotime($start_date));
     $db_end = date('Y-m-d', strtotime($end_date));
 
+    // Function to prepare queries with error handling
+    function safePrepare($conn, $sql) {
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) {
+            die("SQL prepare failed: " . $conn->error);
+        }
+        return $stmt;
+    }
+
     // 1. School Fee
-    $stmt = $conn->prepare("SELECT IFNULL(SUM(amount_paid), 0) FROM school_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
+    $stmt = safePrepare($conn, "SELECT IFNULL(SUM(amount_paid), 0) FROM school_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['school fees']);
@@ -52,7 +61,7 @@ if ($start_date && $end_date) {
     $stmt->close();
 
     // 2. Lunch Fee
-    $stmt = $conn->prepare("SELECT IFNULL(SUM(amount_paid), 0) FROM lunch_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
+    $stmt = safePrepare($conn, "SELECT IFNULL(SUM(amount_paid), 0) FROM lunch_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['lunch fees']);
@@ -60,24 +69,33 @@ if ($start_date && $end_date) {
     $stmt->close();
 
     // 3. Other Payments (Completed only)
-    $stmt = $conn->prepare("SELECT IFNULL(SUM(amount), 0) FROM other_transactions WHERE DATE(transaction_date) BETWEEN ? AND ? AND status = 'Completed'");
+    $stmt = safePrepare($conn, "SELECT IFNULL(SUM(amount_paid), 0) FROM other_transactions WHERE DATE(transaction_date) BETWEEN ? AND ? AND status = 'Completed'");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['others']);
     $stmt->fetch();
     $stmt->close();
 
-    // 4. Purchases
-    $stmt = $conn->prepare("SELECT IFNULL(SUM(total_amount_paid), 0) FROM purchase_transactions WHERE DATE(transaction_date) BETWEEN ? AND ?");
+    // 4. Purchases (Books + Uniforms combined)
+    $stmt = safePrepare($conn, "
+        SELECT IFNULL(SUM(amount_paid), 0) FROM (
+            SELECT amount_paid, purchase_date AS date FROM book_purchases
+            UNION ALL
+            SELECT amount_paid, purchase_date AS date FROM uniform_purchases
+        ) AS purchases
+        WHERE DATE(date) BETWEEN ? AND ?
+    ");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['books and uniform']);
     $stmt->fetch();
     $stmt->close();
 
+    // Calculate total
     $totalPaid = array_sum($results);
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
