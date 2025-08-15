@@ -12,6 +12,9 @@ if (!isset($_SESSION['username'])) {
 
 include 'db.php';
 
+$prefill_adm = $_GET['admission_no'] ?? '';
+$prefill_name = $_GET['student_name'] ?? '';
+
 $daily_fee = 70;
 $valid_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -65,8 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $year_last_three = substr(date('Y'), -3);
     }
 
+    // Generate random 4-character alphanumeric string (letters and numbers)
+    $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    $random_str = '';
+    for ($i = 0; $i < 4; $i++) {
+        $random_str .= $characters[random_int(0, strlen($characters) - 1)];
+    }
+
     // Format receipt number
-    $receipt_number = "KJS-T{$term_number}-{$year_last_three}";
+    $receipt_number = "KJS-T{$term_number}-{$random_str}";
 
     $fee_totals = [
         "Admission" => 1000,
@@ -590,8 +600,8 @@ $conn->close();
       <form id="feeForm">
         <!-- Student Search -->
         <div class="form-group">
-          <input type="text" id="student-search" placeholder="Search student..." autocomplete="off">
-          <input type="hidden" id="admission_no" name="admission_no">
+          <input type="text" id="student-search" placeholder="Search student..." autocomplete="off" value="<?= htmlspecialchars($prefill_name); ?>">
+          <input type="hidden" id="admission_no" name="admission_no" value="<?= htmlspecialchars($prefill_adm); ?>">
           <input type="hidden" id="student_name" name="student_name">
           <div id="suggestions"></div>
         </div>
