@@ -63,7 +63,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Change Password</title>
-  <link rel="stylesheet" href="../style/sheet.css" />
+  <link rel="stylesheet" href="../style/style-sheet.css" />
   <link rel="website icon" type="png" href="../images/school-logo.jpg" />
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
   <style>
@@ -236,11 +236,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <?php include '../includes/footer.php'; ?>
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () {
     /* ===== Real-time clock ===== */
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+        if (clockElement) {
             const now = new Date();
             const timeString = now.toLocaleTimeString();
             clockElement.textContent = timeString;
@@ -261,6 +261,18 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Keep dropdown open if current page matches a child link ===== */
+    const currentUrl = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+        const links = drop.querySelectorAll("a");
+        links.forEach(link => {
+            const linkUrl = link.getAttribute("href");
+            if (linkUrl && linkUrl.includes(currentUrl)) {
+                drop.classList.add("open");
+            }
         });
     });
 
@@ -288,17 +300,14 @@ document.addEventListener("DOMContentLoaded", function () {
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
-            // Silent logout - redirect to logout page
             window.location.href = 'logout.php'; // Change to your logout URL
         }, 300000); // 30 seconds
     }
 
-    // Reset timer on user activity
     ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
         document.addEventListener(evt, resetLogoutTimer);
     });
 
-    // Start the timer when page loads
     resetLogoutTimer();
 });
 </script>

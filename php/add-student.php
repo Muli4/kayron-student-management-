@@ -2,6 +2,7 @@
 session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+date_default_timezone_set('Africa/Nairobi');
 include 'db.php';  // Your DB connection
 
 // Get current term from terms table
@@ -12,28 +13,25 @@ if ($term_result && $term_result->num_rows > 0) {
     $current_term = strtolower($row['term_number']); // e.g. 'term1', 'term2', 'term3'
 }
 
-// ===== Auto-generate next admission number with format KJS-###-0YY =====
 
-// Get last two digits of current year with leading zero
-$year_suffix = date('y');   // e.g. "25"
-$year_suffix = '0' . $year_suffix;  // e.g. "025"
+$year_suffix = '0' . date('y');
 
-// Find last admission_no for this year
-$last_adm_result = $conn->query("SELECT admission_no FROM student_records WHERE admission_no LIKE 'KJS-%-$year_suffix' ORDER BY admission_no DESC LIMIT 1");
 
-$next_num = 1; // default increment if none found
+$last_adm_result = $conn->query("SELECT admission_no FROM student_records ORDER BY id DESC LIMIT 1");
+
+$next_num = 1;
 
 if ($last_adm_result && $last_adm_result->num_rows > 0) {
     $row = $last_adm_result->fetch_assoc();
     $last_adm = $row['admission_no'];
-    // Extract the 3-digit increment number part using regex
-    if (preg_match('/KJS-(\d{3})-0\d{2}/', $last_adm, $matches)) {
+    // Extract the 3-digit number part using regex
+    if (preg_match('/KJS-(\d+)-\d{2}/', $last_adm, $matches)) {
         $last_num = (int)$matches[1];
         $next_num = $last_num + 1;
     }
 }
 
-$next_adm_no = 'KJS-' . str_pad($next_num, 3, '0', STR_PAD_LEFT) . '-' . $year_suffix;
+$next_adm_no = 'KJS-' . str_pad($next_num, 4, '0', STR_PAD_LEFT) . '-' . $year_suffix;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Get required fields
@@ -50,19 +48,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $term = $current_term;
     $religion = !empty($_POST['religion']) ? $_POST['religion'] : null;
     $guardian = !empty($_POST['guardian']) ? trim($_POST['guardian']) : null;
-    $phone1 = !empty($_POST['phone1']) ? trim($_POST['phone1']) : null;
-    $phone2 = !empty($_POST['phone2']) ? trim($_POST['phone2']) : null;
-
-    // Combine phone numbers if both exist, separated by comma
-    if ($phone1 && $phone2) {
-        $phone = $phone1 . ',' . $phone2;
-    } elseif ($phone1) {
-        $phone = $phone1;
-    } elseif ($phone2) {
-        $phone = $phone2;
-    } else {
-        $phone = null;
-    }
+    $phone = !empty($_POST['phone']) ? trim($_POST['phone']) : null;
+    $alt_phone = !empty($_POST['alt_phone']) ? trim($_POST['alt_phone']) : null;
 
     // Handle student photo blob
     $student_photo = null;
@@ -90,23 +77,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Prepare insert statement for student_records
     $stmt = $conn->prepare("INSERT INTO student_records 
-        (admission_no, birth_cert, name, dob, gender, student_photo, class, term, religion, guardian, phone) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        (admission_no, birth_cert, name, dob, gender, student_photo, class, term, religion, guardian, phone, alt_phone) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $null = null;
     $stmt->bind_param(
-        "sssssbsssss",
+        "sssssbssssss",
         $admission_no,
         $birth_cert,
         $name,
         $dob,
         $gender,
-        $null, // for BLOB
+        $null,  // for BLOB
         $class,
         $term,
         $religion,
         $guardian,
-        $phone
+        $phone,
+        $alt_phone
     );
 
     if ($student_photo !== null) {
@@ -388,11 +376,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <?php include '../includes/footer.php'; ?>
 
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () {
     /* ===== Real-time clock ===== */
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+        if (clockElement) {
             const now = new Date();
             const timeString = now.toLocaleTimeString();
             clockElement.textContent = timeString;
@@ -413,6 +401,18 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Keep dropdown open if current page matches a child link ===== */
+    const currentUrl = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+        const links = drop.querySelectorAll("a");
+        links.forEach(link => {
+            const linkUrl = link.getAttribute("href");
+            if (linkUrl && linkUrl.includes(currentUrl)) {
+                drop.classList.add("open");
+            }
         });
     });
 
@@ -440,17 +440,14 @@ document.addEventListener("DOMContentLoaded", function () {
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
-            // Silent logout - redirect to logout page
             window.location.href = 'logout.php'; // Change to your logout URL
-        }, 300000); // 5 minutes
+        }, 300000); // 30 seconds
     }
 
-    // Reset timer on user activity
     ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
         document.addEventListener(evt, resetLogoutTimer);
     });
 
-    // Start the timer when page loads
     resetLogoutTimer();
 });
 </script>

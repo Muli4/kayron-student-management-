@@ -1,5 +1,6 @@
 <?php
 session_start();
+
 if (!isset($_SESSION['username'])) {
     header("Location: ../index.php");
     exit();
@@ -13,15 +14,17 @@ $end_date = $_SESSION['end_date'] ?? '';
 unset($_SESSION['message']); // Clear message so it shows once
 
 $results = [
-    'school fees'      => 0,
-    'lunch fees'       => 0,
-    'others'           => 0,
-    'books and uniform'=> 0
+    'school fees'         => 0,
+    'lunch fees'          => 0,
+    'graduation & prize'  => 0,
+    'others'              => 0,
+    'books and uniform'   => 0
 ];
+
 $totalPaid = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Process form POST, save to session then redirect
+    // Handle POST form submission
     $start_date_post = $_POST['start_date'] ?? '';
     $end_date_post = $_POST['end_date'] ?? '';
 
@@ -39,11 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // If start and end date are set in session, fetch the results
 if ($start_date && $end_date) {
-    // Reformat to YYYY-MM-DD for DB queries
     $db_start = date('Y-m-d', strtotime($start_date));
     $db_end = date('Y-m-d', strtotime($end_date));
 
-    // Function to prepare queries with error handling
     function safePrepare($conn, $sql) {
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
@@ -53,7 +54,11 @@ if ($start_date && $end_date) {
     }
 
     // 1. School Fee
-    $stmt = safePrepare($conn, "SELECT IFNULL(SUM(amount_paid), 0) FROM school_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
+    $stmt = safePrepare($conn, "
+        SELECT IFNULL(SUM(amount_paid), 0) 
+        FROM school_fee_transactions 
+        WHERE DATE(payment_date) BETWEEN ? AND ?
+    ");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['school fees']);
@@ -61,27 +66,54 @@ if ($start_date && $end_date) {
     $stmt->close();
 
     // 2. Lunch Fee
-    $stmt = safePrepare($conn, "SELECT IFNULL(SUM(amount_paid), 0) FROM lunch_fee_transactions WHERE DATE(payment_date) BETWEEN ? AND ?");
+    $stmt = safePrepare($conn, "
+        SELECT IFNULL(SUM(amount_paid), 0) 
+        FROM lunch_fee_transactions 
+        WHERE DATE(payment_date) BETWEEN ? AND ?
+    ");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['lunch fees']);
     $stmt->fetch();
     $stmt->close();
 
-    // 3. Other Payments (Completed only)
-    $stmt = safePrepare($conn, "SELECT IFNULL(SUM(amount_paid), 0) FROM other_transactions WHERE DATE(transaction_date) BETWEEN ? AND ? AND status = 'Completed'");
+    // 3a. Graduation + Prize Giving
+    $stmt = safePrepare($conn, "
+        SELECT IFNULL(SUM(amount_paid), 0) 
+        FROM other_transactions 
+        WHERE DATE(transaction_date) BETWEEN ? AND ? 
+        AND status = 'Completed' 
+        AND fee_type IN ('Graduation', 'Prize Giving')
+    ");
+    $stmt->bind_param("ss", $db_start, $db_end);
+    $stmt->execute();
+    $stmt->bind_result($results['graduation & prize']);
+    $stmt->fetch();
+    $stmt->close();
+
+    // 3b. Other fee types excluding Graduation + Prize Giving
+    $stmt = safePrepare($conn, "
+        SELECT IFNULL(SUM(amount_paid), 0) 
+        FROM other_transactions 
+        WHERE DATE(transaction_date) BETWEEN ? AND ? 
+        AND status = 'Completed' 
+        AND fee_type NOT IN ('Graduation', 'Prize Giving')
+    ");
     $stmt->bind_param("ss", $db_start, $db_end);
     $stmt->execute();
     $stmt->bind_result($results['others']);
     $stmt->fetch();
     $stmt->close();
 
-    // 4. Purchases (Books + Uniforms combined)
+    // 4. Books + Uniform Purchases
     $stmt = safePrepare($conn, "
-        SELECT IFNULL(SUM(amount_paid), 0) FROM (
-            SELECT amount_paid, purchase_date AS date FROM book_purchases
+        SELECT IFNULL(SUM(amount_paid), 0) 
+        FROM (
+            SELECT amount_paid, purchase_date AS date 
+            FROM book_purchases
             UNION ALL
-            SELECT amount_paid, purchase_date AS date FROM uniform_purchases
+            SELECT amount_paid, purchase_date AS date 
+            FROM uniform_purchases
         ) AS purchases
         WHERE DATE(date) BETWEEN ? AND ?
     ");
@@ -91,7 +123,7 @@ if ($start_date && $end_date) {
     $stmt->fetch();
     $stmt->close();
 
-    // Calculate total
+    // Final total
     $totalPaid = array_sum($results);
 }
 ?>
@@ -322,23 +354,37 @@ if ($start_date && $end_date) {
         <h3 class="weekly-report__summary">Payments from <?= $formatted_start ?> to <?= $formatted_end ?>:</h3>
 
         <table class="weekly-report__table">
-          <tr>
-            <th>school fees</th>
-            <th>lunch fees</th>
-            <th>others</th>
-            <th>books and uniform</th>
-          </tr>
-          <tr>
-            <td><?= number_format($results['school fees'], 2) ?></td>
-            <td><?= number_format($results['lunch fees'], 2) ?></td>
-            <td><?= number_format($results['others'], 2) ?></td>
-            <td><?= number_format($results['books and uniform'], 2) ?></td>
-          </tr>
-          <tr>
-            <td colspan="3" style="text-align:right;">Total:</td>
-            <td><?= number_format($totalPaid, 2) ?></td>
-          </tr>
+          <thead>
+            <tr>
+              <th>School Fees</th>
+              <th>Lunch Fees</th>
+              <th>Prize Giving & Graduation</th>
+              <th>Others</th>
+              <th>Books and Uniform</th>
+              <th>Total Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><?= number_format($results['school fees'], 2) ?></td>
+              <td><?= number_format($results['lunch fees'], 2) ?></td>
+              <td><?= number_format($results['graduation & prize'], 2) ?></td>
+              <td><?= number_format($results['others'], 2) ?></td>
+              <td><?= number_format($results['books and uniform'], 2) ?></td>
+              <td><?= number_format($totalPaid, 2) ?></td>
+            </tr>
+            <tr style="font-weight: bold; background-color: #e6f0fa;">
+              <td><?= number_format($results['school fees'], 2) ?></td>
+              <td><?= number_format($results['lunch fees'], 2) ?></td>
+              <td><?= number_format($results['graduation & prize'], 2) ?></td>
+              <td><?= number_format($results['others'], 2) ?></td>
+              <td><?= number_format($results['books and uniform'], 2) ?></td>
+              <td><?= number_format($totalPaid, 2) ?></td>
+            </tr>
+          </tbody>
         </table>
+
+
       <?php endif; ?>
     </div>
   </main>

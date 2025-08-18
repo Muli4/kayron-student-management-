@@ -1,180 +1,86 @@
 <?php
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
+session_start();
+if (!isset($_SESSION['username'])) {
+    echo "Unauthorized access"; exit();
 }
+include 'db.php';
 
-include 'db.php'; // Database connection
+$receipt_no = $_GET['receipt_no'] ?? '';
+if (!$receipt_no) { echo "No receipt specified."; exit(); }
 
-$approved_by = $_SESSION['username'] ?? "Admin";
+// === Fetch all transactions for this receipt ===
+$school_fees = $conn->query("SELECT * FROM school_fee_transactions WHERE receipt_number='$receipt_no'")->fetch_all(MYSQLI_ASSOC);
+$lunch_fees = $conn->query("SELECT * FROM lunch_fee_transactions WHERE receipt_number='$receipt_no'")->fetch_all(MYSQLI_ASSOC);
+$others = $conn->query("SELECT * FROM others WHERE receipt_number='$receipt_no'")->fetch_all(MYSQLI_ASSOC);
+$uniforms = $conn->query("SELECT * FROM uniform_purchases WHERE receipt_number='$receipt_no'")->fetch_all(MYSQLI_ASSOC);
+$books = $conn->query("SELECT * FROM book_purchases WHERE receipt_number='$receipt_no'")->fetch_all(MYSQLI_ASSOC);
 
-$receipt_number = htmlspecialchars($_GET['receipt_number'] ?? '');
-$admission_no = htmlspecialchars($_GET['admission_no'] ?? '');
-$payment_type = htmlspecialchars($_GET['payment_type'] ?? '');
-$date = date("d-m-Y");
+// === Get student info from first available record ===
+$student = $school_fees[0] ?? $lunch_fees[0] ?? $others[0] ?? $uniforms[0] ?? $books[0] ?? null;
+if (!$student) { echo "No transactions found for this receipt."; exit(); }
 
-// Fetch student name from student_records or graduated_students
-$student_name = "Unknown";
-$student_query = "
-    SELECT name FROM student_records WHERE admission_no = ?
-    UNION
-    SELECT name FROM graduated_students WHERE admission_no = ?
-    LIMIT 1
-";
-$stmt = $conn->prepare($student_query);
-$stmt->bind_param("ss", $admission_no, $admission_no);
-$stmt->execute();
-$student_result = $stmt->get_result();
-if ($student_result->num_rows > 0) {
-    $student_name = htmlspecialchars($student_result->fetch_assoc()['name']);
-}
-$stmt->close();
+$name = $student['name'];
+$admission_no = $student['admission_no'];
+$class = $student['class'] ?? '';
+$payment_type = $student['payment_type'] ?? 'Cash';
 
-// Decode fees from query string
-$fees = json_decode($_GET['fees'] ?? '[]', true);
-if (!is_array($fees)) $fees = [];
+$total_paid = 0;
 
-$total_paid_now = 0;
-$total_balance = 0;
-
-// Fetch updated school fees balances from the database
-$fee_details = [];
-foreach ($fees as $term => $amount_paid_now) {
-    $amount_paid_now = (float)$amount_paid_now;
-    $total_paid_now += $amount_paid_now;
-
-    $fee_query = "SELECT balance FROM school_fees WHERE admission_no = ? AND term = ? ORDER BY created_at DESC LIMIT 1";
-    $stmt = $conn->prepare($fee_query);
-    $stmt->bind_param("ss", $admission_no, $term);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $balance = 0.00;
-    if ($row = $result->fetch_assoc()) {
-        $balance = (float)$row['balance'];
-    }
-    $stmt->close();
-
-    $fee_details[] = [
-        'term' => $term,
-        'amount_paid' => $amount_paid_now,
-        'balance' => $balance
-    ];
-    $total_balance += $balance;
-}
-
-$barcode_url = "https://barcode.tec-it.com/barcode.ashx?data=" . urlencode($receipt_number) . "&code=Code128&dpi=96";
+function formatAmount($amt){ return number_format($amt,2); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Receipt</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            width: 320px;
-            margin: auto;
-            font-size: 14px;
-            color: #333;
-        }
-        .receipt {
-            border: 1px dashed black;
-            padding: 15px;
-            background: #fff;
-        }
-        .title {
-            font-weight: bold;
-            font-size: 1.2em;
-            text-align: center;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-        .line {
-            border-top: 1px dashed #000;
-            margin: 10px 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 8px;
-        }
-        th, td {
-            padding: 4px 6px;
-            text-align: left;
-            border: 1px solid #ccc;
-        }
-        .amount {
-            text-align: right;
-        }
-        .total {
-            font-weight: bold;
-            margin-top: 10px;
-            border-top: 2px solid black;
-            padding-top: 5px;
-        }
-        .approved, .thank-you {
-            margin-top: 10px;
-            font-style: italic;
-            text-align: center;
-        }
-        .barcode {
-            text-align: center;
-            margin-top: 15px;
-        }
-        .barcode img {
-            width: 180px;
-            height: auto;
-        }
-    </style>
-    <script>
-        window.onload = function () {
-            window.print();
-            window.onafterprint = function () {
-                window.location.href = 'purchase.php'; // Or remove if you don't want redirect
-            };
-        };
-    </script>
+<meta charset="UTF-8">
+<title>Receipt <?= htmlspecialchars($receipt_no) ?></title>
+<style>
+body { font-family: Arial; max-width:600px; margin:auto; }
+.header { text-align:center; margin-bottom:20px; }
+h2,h3 { margin:0; }
+table { width:100%; border-collapse: collapse; margin-top:10px;}
+th,td { border:1px solid #000; padding:5px; text-align:left; }
+.total { font-weight:bold; }
+</style>
 </head>
 <body>
-<div class="receipt">
-    <div class="title">Kayron Junior School</div>
-    <div style="text-align:center;">Tel: 0703373151 / 0740047243</div>
-    <div class="line"></div>
-    <strong>Official Receipt</strong><br>
-    Date: <strong><?= $date ?></strong><br>
-    Receipt No: <strong><?= $receipt_number ?></strong><br>
-    Admission No: <strong><?= $admission_no ?></strong><br>
-    Student Name: <strong><?= $student_name ?></strong><br>
-    Payment Type: <strong><?= ucfirst($payment_type) ?></strong>
-    <div class="line"></div>
-
-    <?php if (!empty($fee_details)): ?>
-        <strong>Fee Payments</strong>
-        <table>
-            <tr>
-                <th>Fee Type</th>
-                <th>Paid Now (KES)</th>
-                <th>Balance (KES)</th>
-            </tr>
-            <?php foreach ($fee_details as $fee): ?>
-                <tr>
-                    <td>School Fees (<?= ucfirst($fee['term']) ?>)</td>
-                    <td class="amount"><?= number_format($fee['amount_paid'], 2) ?></td>
-                    <td class="amount"><?= number_format($fee['balance'], 2) ?></td>
-                </tr>
-            <?php endforeach; ?>
-        </table>
-    <?php endif; ?>
-
-    <div class="total">TOTAL PAID NOW: KES <?= number_format($total_paid_now, 2) ?></div>
-    <div class="total">TOTAL BALANCE: KES <?= number_format($total_balance, 2) ?></div>
-
-    <div class="approved">Payment Approved By: <strong><?= htmlspecialchars($approved_by) ?></strong></div>
-    <div class="thank-you">Thank you for trusting in our school. Always working to output the best!</div>
-
-    <div class="barcode">
-        <img src="<?= $barcode_url ?>" alt="Receipt Barcode">
-    </div>
+<div class="header">
+<h2>Kayron Junior School</h2>
+<p>Tel: 0703373151 / 0740047243</p>
+<h3>Official Receipt</h3>
+<p>Date: <?= date('d/m/Y') ?> | Receipt No: <?= htmlspecialchars($receipt_no) ?></p>
 </div>
+
+<p><strong>Student:</strong> <?= htmlspecialchars($name) ?> | <strong>Admission No:</strong> <?= htmlspecialchars($admission_no) ?> | <strong>Class:</strong> <?= htmlspecialchars($class) ?></p>
+<p><strong>Payment Method:</strong> <?= htmlspecialchars($payment_type) ?></p>
+
+<table>
+<tr><th>Fee Type</th><th>Amount</th></tr>
+
+<?php foreach($school_fees as $sf){ $total_paid += $sf['amount_paid']; ?>
+<tr><td>School Fee</td><td><?= formatAmount($sf['amount_paid']) ?></td></tr>
+<?php } ?>
+
+<?php foreach($lunch_fees as $lf){ $total_paid += $lf['amount_paid']; ?>
+<tr><td>Lunch Fee</td><td><?= formatAmount($lf['amount_paid']) ?></td></tr>
+<?php } ?>
+
+<?php foreach($others as $o){ $total_paid += $o['amount_paid']; ?>
+<tr><td><?= htmlspecialchars($o['fee_type']) ?></td><td><?= formatAmount($o['amount_paid']) ?></td></tr>
+<?php } ?>
+
+<?php foreach($uniforms as $u){ $total_paid += $u['amount_paid']; ?>
+<tr><td>Uniform (<?= htmlspecialchars($u['uniform_type'].'-'.$u['size']) ?>)</td><td><?= formatAmount($u['amount_paid']) ?></td></tr>
+<?php } ?>
+
+<?php foreach($books as $b){ $total_paid += $b['amount_paid']; ?>
+<tr><td>Book (<?= htmlspecialchars($b['book_name']) ?>)</td><td><?= formatAmount($b['amount_paid']) ?></td></tr>
+<?php } ?>
+
+<tr class="total"><td>Total Paid</td><td><?= formatAmount($total_paid) ?></td></tr>
+</table>
+
+<p>Approved by: Emmaculate</p>
+<p>Thank you for your payment!</p>
+<script>window.print();</script>
 </body>
 </html>
-<?php exit; ?>

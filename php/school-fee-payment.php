@@ -1,4 +1,4 @@
-give html code for this <?php
+<?php
 session_start();
 
 include 'db.php'; // Include database connection

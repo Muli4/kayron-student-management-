@@ -79,7 +79,7 @@ if (isset($_GET['ajax'])) {
     $carry_stmt->fetch();
     $carry_stmt->close();
 
-    // Check unpaid balance from previous term (if any)
+    // === MODIFIED: Check unpaid balance from last paid day in previous term ===
     $prev_term_id = 0;
     $prev_term_res = $conn->prepare("SELECT MAX(id) FROM terms WHERE id < ?");
     $prev_term_res->bind_param("i", $selected_term);
@@ -103,46 +103,100 @@ if (isset($_GET['ajax'])) {
         $check_stmt->close();
 
         if ($has_prev_lunch > 0) {
-            $paid_stmt = $conn->prepare("
-                SELECT IFNULL(SUM(monday+tuesday+wednesday+thursday+friday),0)
-                FROM lunch_fees
+            error_log("Student $selected_student had lunch records in term $prev_term_id");
+
+            // Step 1: Find last paid day and how much was paid
+            $payment_stmt = $conn->prepare("
+                SELECT week_number, monday, tuesday, wednesday, thursday, friday 
+                FROM lunch_fees 
                 WHERE admission_no = ? AND term_id = ?
+                ORDER BY week_number ASC
             ");
-            $paid_stmt->bind_param("si", $selected_student, $prev_term_id);
-            $paid_stmt->execute();
-            $paid_stmt->bind_result($total_paid);
-            $paid_stmt->fetch();
-            $paid_stmt->close();
+            $payment_stmt->bind_param("si", $selected_student, $prev_term_id);
+            $payment_stmt->execute();
+            $result = $payment_stmt->get_result();
 
-            $days_stmt = $conn->prepare("
-                SELECT COUNT(*) 
-                FROM days d
-                JOIN weeks w ON d.week_id = w.id
-                WHERE w.term_id = ? AND d.is_public_holiday = 0
-            ");
-            $days_stmt->bind_param("i", $prev_term_id);
-            $days_stmt->execute();
-            $days_stmt->bind_result($total_days);
-            $days_stmt->fetch();
-            $days_stmt->close();
+            $last_paid_week = 0;
+            $last_paid_day_index = -1;
+            $last_paid_amount = 0; // 🔹 NEW
+            $day_list = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
-            $abs_stmt = $conn->prepare("
-                SELECT COUNT(*) 
+            while ($row = $result->fetch_assoc()) {
+                foreach ($day_list as $i => $day) {
+                    $amount = floatval($row[$day]); // 🔹 NEW
+                    if ($amount > 0) {
+                        $last_paid_week = intval($row['week_number']);
+                        $last_paid_day_index = $i;
+                        $last_paid_amount = $amount; // 🔹 NEW
+                    }
+                }
+            }
+            $payment_stmt->close();
+
+            if ($last_paid_day_index === -1) {
+                $last_paid_week = 0;
+                $last_paid_day_index = -1;
+                error_log("No lunch payments found for student $selected_student in term $prev_term_id");
+            } else {
+                error_log("Last paid day for student $selected_student was week $last_paid_week, day index $last_paid_day_index, amount paid: $last_paid_amount");
+            }
+
+            // Step 2: Count attended school days after last paid day
+            $day_stmt = $conn->prepare("
+                SELECT d.day_name, w.week_number, d.id, d.is_public_holiday, a.status 
                 FROM days d
                 JOIN weeks w ON d.week_id = w.id
                 LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
-                WHERE w.term_id = ? AND a.status = 'Absent'
+                WHERE w.term_id = ?
+                ORDER BY w.week_number ASC, FIELD(d.day_name, 'Monday','Tuesday','Wednesday','Thursday','Friday')
             ");
-            $abs_stmt->bind_param("si", $selected_student, $prev_term_id);
-            $abs_stmt->execute();
-            $abs_stmt->bind_result($absent_days);
-            $abs_stmt->fetch();
-            $abs_stmt->close();
+            $day_stmt->bind_param("si", $selected_student, $prev_term_id);
+            $day_stmt->execute();
+            $result = $day_stmt->get_result();
 
-            $expected = ($total_days - $absent_days) * $lunch_full_day;
-            $unpaid_balance = max(0, $expected - $total_paid);
+            $countable_days = 0;
+            $day_index_map = ['Monday'=>0, 'Tuesday'=>1, 'Wednesday'=>2, 'Thursday'=>3, 'Friday'=>4];
+            $partial_day_checked = false; // 🔹 NEW
+
+            while ($row = $result->fetch_assoc()) {
+                $week = intval($row['week_number']);
+                $day_name = $row['day_name'];
+                $day_index = $day_index_map[$day_name] ?? -1;
+
+                $holiday = intval($row['is_public_holiday']);
+                $status = $row['status'];
+
+                // 🔹 NEW: Handle partial payment for the exact last paid day
+                if (!$partial_day_checked && $week === $last_paid_week && $day_index === $last_paid_day_index) {
+                    if ($holiday === 0 && $status !== 'Absent') {
+                        $remaining = $lunch_full_day - $last_paid_amount;
+                        if ($remaining > 0) {
+                            $unpaid_balance += $remaining;
+                            error_log("Partial payment on $day_name of week $week. Paid: $last_paid_amount. Remaining: $remaining");
+                        }
+                    }
+                    $partial_day_checked = true;
+                    continue; // Still skip to avoid recounting
+                }
+
+                // Skip days before last paid
+                if ($week < $last_paid_week || ($week === $last_paid_week && $day_index <= $last_paid_day_index)) {
+                    continue;
+                }
+
+                if ($holiday === 1 || $status === 'Absent') continue;
+
+                $countable_days++;
+                $unpaid_balance += $lunch_full_day;
+                error_log("Unpaid day: $day_name of week $week — Added KES $lunch_full_day");
+            }
+
+            $day_stmt->close();
+
+            error_log("Student $selected_student has $countable_days fully unpaid days after last payment. Total unpaid balance: $unpaid_balance");
         }
     }
+
 
     $last_term_id = $conn->query("SELECT MAX(id) AS last_term FROM terms")->fetch_assoc()['last_term'] ?? 0;
 
@@ -242,7 +296,6 @@ if (isset($_GET['ajax'])) {
 
     $output .= "</table>";
 
-    // Calculate current term unpaid lunch balance up to today (based on attendance & payments)
     $current_term_balance = 0;
     $per_day_fee = $lunch_full_day;
 
@@ -250,31 +303,31 @@ if (isset($_GET['ajax'])) {
 
     for ($week_no = 1; $week_no <= $total_weeks; $week_no++) {
         foreach ($day_map as $day_name => $day_offset) {
-            // Calculate date of the day in current week
             $week_start_date = date('Y-m-d', strtotime($start_date . " +".($week_no - 1)." weeks"));
             $day_date = date('Y-m-d', strtotime($week_start_date . " +{$day_offset} days"));
 
-            if ($day_date > $today) {
-                // Skip future days
-                continue;
+            if (strtotime($day_date) > strtotime($today)) {
+                continue; // Future date
             }
 
-            // Skip if holiday or attendance is absent
             $day_att = $attendance[$week_no][$day_name] ?? ['status' => 'Not Marked', 'holiday' => 0];
             if ($day_att['holiday'] == 1 || $day_att['status'] === 'Absent') {
-                continue;
+                continue; // Holiday or absent
             }
 
-            // Check if lunch paid for this day in this week
-            $week_payment = $lunch_data[$week_no] ?? null;
-            $paid_amount = ($week_payment[$day_name] ?? 0);
+            $week_payment = $lunch_data[$week_no] ?? [];
+            $paid_amount = floatval($week_payment[$day_name] ?? 0);
 
-            if ($paid_amount <= 0) {
-                $current_term_balance += $per_day_fee;
+            if ($paid_amount < $per_day_fee) {
+                $current_term_balance += ($per_day_fee - $paid_amount);
             }
         }
     }
 
+    // ✅ Deduct carry forward directly from current term balance
+    $current_term_balance = max(0, $current_term_balance - $carry_forward);
+
+    
     // Show current term balance as of today for last term
     if ($selected_term == $last_term_id && $today >= $start_date && $today <= $end_date) {
         $output .= "<div class='summary unpaid'>
@@ -287,6 +340,15 @@ if (isset($_GET['ajax'])) {
         </div>";
     }
 
+        // Pagination
+    $total_pages = ceil($total_weeks / $rows_per_page);
+    $output .= "<div class='pagination'>";
+    $prev_page = $page - 1;
+    $next_page = $page + 1;
+    $output .= "<a class='".($page <= 1 ? 'disabled' : '')."' data-page='{$prev_page}'>&laquo; Previous</a>";
+    $output .= "<a class='".($page >= $total_pages ? 'disabled' : '')."' data-page='{$next_page}'>Next &raquo;</a>";
+    $output .= "</div>";
+    
     echo $output;
 
     exit; // <<< Important to stop further output after AJAX response
@@ -755,10 +817,9 @@ if (isset($_GET['ajax'])) {
       <div class="form-group">
         <label>Payment Method</label>
         <select name="payment_method" required>
-          <option value="">-- Select Payment Method --</option>
           <option value="Cash">Cash</option>
-          <option value="M-Pesa">M-Pesa</option>
-          <option value="Bank">Bank</option>
+          <!--<option value="M-Pesa">M-Pesa</option>
+          <option value="Bank">Bank</option>-->
         </select>
       </div>
       <button type="submit" id="submit-payment">Make Payment</button>
@@ -769,7 +830,6 @@ if (isset($_GET['ajax'])) {
 <?php include '../includes/footer.php'; ?>
 <script>
 $(document).ready(function () {
-
   // === Live student search ===
   $('#student-search').on('input', function () {
     const query = $(this).val().trim();
@@ -798,7 +858,7 @@ $(document).ready(function () {
     });
   });
 
-  // === Select student ===
+  // === Select student from suggestion ===
   $('#suggestions').on('click', '.suggestion-item', function () {
     const admission = $(this).data('admission');
     const name = $(this).data('name');
@@ -816,7 +876,7 @@ $(document).ready(function () {
     loadTracker(term, admission, 1);
   });
 
-  // === Term change loads tracker ===
+  // === Load tracker when term changes ===
   $('#term').on('change', function () {
     const term = $(this).val();
     const admission = $('#admission_no').val();
@@ -860,16 +920,13 @@ $(document).ready(function () {
       },
       error: function (xhr, status, error) {
         console.error('Payment AJAX error:', status, error, xhr.responseText);
-        let msg = 'Payment request failed. Please try again.';
-        if (status === 'parsererror') {
-          msg = 'Invalid server response (not valid JSON).';
-        }
+        const msg = status === 'parsererror' ? 'Invalid server response (not valid JSON).' : 'Payment request failed. Please try again.';
         $('#message-box').html(`<div class="unpaid">${msg}</div>`).show();
       }
     });
   });
 
-  // === Load Tracker function with pagination ===
+  // === Load Tracker (with pagination) ===
   function loadTracker(term, admission, page = 1) {
     $.get(window.location.pathname, { ajax: 1, term, admission_no: admission, page }, function (response) {
       $('#tracker-results').html(response);
@@ -880,74 +937,77 @@ $(document).ready(function () {
       });
     });
   }
-
 });
 </script>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    /* ===== Real-time clock ===== */
-    function updateClock() {
-        const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) { // removed window.innerWidth check to show clock on all devices
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            clockElement.textContent = timeString;
-        }
+  /* ===== Real-time clock ===== */
+  function updateClock() {
+    const clockElement = document.getElementById('realTimeClock');
+    if (clockElement) {
+      const now = new Date();
+      clockElement.textContent = now.toLocaleTimeString();
     }
-    updateClock(); 
-    setInterval(updateClock, 1000);
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
 
-    /* ===== Dropdowns: only one open ===== */
-    document.querySelectorAll(".dropdown-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const parent = btn.parentElement;
-
-            document.querySelectorAll(".dropdown").forEach(drop => {
-                if (drop !== parent) {
-                    drop.classList.remove("open");
-                }
-            });
-
-            parent.classList.toggle("open");
-        });
+  /* ===== Dropdowns: only one open ===== */
+  const currentPage = window.location.pathname.split("/").pop();
+  document.querySelectorAll(".dropdown-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const parent = btn.parentElement;
+      document.querySelectorAll(".dropdown").forEach(drop => {
+        if (drop !== parent) drop.classList.remove("open");
+      });
+      parent.classList.toggle("open");
     });
+  });
 
-    /* ===== Sidebar toggle for mobile ===== */
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.querySelector('.toggle-btn');
-    const overlay = document.createElement('div');
-    overlay.classList.add('sidebar-overlay');
-    document.body.appendChild(overlay);
-
-    toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('show');
-        overlay.classList.toggle('show');
+  // ===== Keep relevant dropdown open based on current URL =====
+  document.querySelectorAll(".dropdown").forEach(drop => {
+    const links = drop.querySelectorAll("a");
+    links.forEach(link => {
+      const href = link.getAttribute("href");
+      if (href && href.includes(currentPage)) {
+        drop.classList.add("open");
+      }
     });
+  });
 
-    /* ===== Close sidebar on outside click ===== */
-    overlay.addEventListener('click', () => {
-        sidebar.classList.remove('show');
-        overlay.classList.remove('show');
-    });
+  /* ===== Sidebar toggle for mobile ===== */
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.querySelector('.toggle-btn');
+  const overlay = document.createElement('div');
+  overlay.classList.add('sidebar-overlay');
+  document.body.appendChild(overlay);
 
-    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
-    let logoutTimer;
+  toggleBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('show');
+    overlay.classList.toggle('show');
+  });
 
-    function resetLogoutTimer() {
-        clearTimeout(logoutTimer);
-        logoutTimer = setTimeout(() => {
-            // Silent logout - redirect to logout page
-            window.location.href = 'logout.php'; // Change to your logout URL
-        }, 300000); // 5 minutes
-    }
+  /* ===== Close sidebar on outside click ===== */
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('show');
+    overlay.classList.remove('show');
+  });
 
-    // Reset timer on user activity
-    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-        document.addEventListener(evt, resetLogoutTimer);
-    });
+  /* ===== Auto logout after 5 minutes of inactivity ===== */
+  let logoutTimer;
+  function resetLogoutTimer() {
+    clearTimeout(logoutTimer);
+    logoutTimer = setTimeout(() => {
+      window.location.href = 'logout.php'; // Adjust logout URL
+    }, 300000); // 5 minutes
+  }
 
-    // Start the timer when page loads
-    resetLogoutTimer();
+  ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+    document.addEventListener(evt, resetLogoutTimer);
+  });
+
+  resetLogoutTimer();
 });
 </script>
 </body>

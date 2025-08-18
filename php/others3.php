@@ -12,6 +12,9 @@ if (!isset($_SESSION['username'])) {
 
 include 'db.php';
 
+$prefill_adm = $_GET['admission_no'] ?? '';
+$prefill_name = $_GET['student_name'] ?? '';
+
 $daily_fee = 70;
 $valid_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
@@ -36,6 +39,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->bind_result($name, $term, $student_class);
     $found = $stmt->fetch();
     $stmt->close();
+
+    // After fetching student from student_records or graduated_students, add:
+    $stmt = $conn->prepare("SELECT graduation_date FROM graduated_students WHERE admission_no = ?");
+    $stmt->bind_param("s", $admission_no);
+    $stmt->execute();
+    $stmt->bind_result($graduation_date);
+    $stmt->fetch();
+    $stmt->close();
+
+// If student not graduated, $graduation_date will be null or empty
+
 
     if (!$found) {
         $stmt2 = $conn->prepare("SELECT name, term, class FROM graduated_students WHERE admission_no = ?");
@@ -65,8 +79,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $year_last_three = substr(date('Y'), -3);
     }
 
+    // Generate random 4-character alphanumeric string (letters and numbers)
+    $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    $random_str = '';
+    for ($i = 0; $i < 4; $i++) {
+        $random_str .= $characters[random_int(0, strlen($characters) - 1)];
+    }
+
     // Format receipt number
-    $receipt_number = "KJS-T{$term_number}-{$year_last_three}";
+    $receipt_number = "SCF-T{$term_number}-{$random_str}";
 
     $fee_totals = [
         "Admission" => 1000,
@@ -114,17 +135,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ins->close();
             }
 
-            $tr = $conn->prepare("INSERT INTO other_transactions (others_id, amount_paid, payment_type, receipt_number) VALUES (?, ?, ?, ?)");
-            $tr->bind_param("idss", $others_id, $amount_paid, $payment_type, $receipt_number);
+            $tr = $conn->prepare("INSERT INTO other_transactions (others_id, amount_paid, fee_type, payment_type, receipt_number) VALUES (?, ?, ?, ?, ?)");
+            $tr->bind_param("idsss", $others_id, $amount_paid, $fee_type, $payment_type, $receipt_number);
             $tr->execute();
             $tr->close();
         }
+        
+        $term_number = 0;
+        $year = 0;
+        $default_year = date('Y');
+
+        if (preg_match('/term\s*(\d+)/i', $term, $matches)) {
+            $term_number = (int)$matches[1];
+            $year = $default_year;
+            error_log("Parsed term_number=$term_number, defaulting year=$year from term='$term'");
+        } else {
+            error_log("Failed to parse term_number from term='$term'");
+        }
+
+        if (!isset($current_term_id) || !isset($current_term_number)) {
+            if ($term_number > 0 && $year > 0) {
+                $term_stmt = $conn->prepare("SELECT id, term_number, start_date FROM terms WHERE term_number = ? AND year = ? LIMIT 1");
+                if ($term_stmt === false) {
+                    error_log("Failed to prepare statement for terms query: " . $conn->error);
+                } else {
+                    $term_stmt->bind_param("ii", $term_number, $year);
+                    $term_stmt->execute();
+                    $term_data = $term_stmt->get_result()->fetch_assoc();
+                    $term_stmt->close();
+
+                    if ($term_data) {
+                        $current_term_id = (int)$term_data['id'];
+                        $current_term_number = (int)$term_data['term_number'];
+                        $current_term_start = $term_data['start_date'];
+                        error_log("Fetched term data: id=$current_term_id, number=$current_term_number, start=$current_term_start");
+                    } else {
+                        error_log("ERROR: Failed to fetch term data for term_number=$term_number, year=$year");
+                        $current_term_id = 0;
+                        $current_term_number = 0;
+                        $current_term_start = date('Y-m-d');
+                    }
+                }
+            } else {
+                error_log("ERROR: term_number or year not set before fetching term data");
+                $current_term_id = 0;
+                $current_term_number = 0;
+                $current_term_start = date('Y-m-d');
+            }
+        }
+
 
         // --- Process Lunch Fee ---
         if ($lunch_amount > 0) {
             $amount = $lunch_amount;
             $original_amt = $amount;
 
+            // ✅ Check if the student has any lunch fee records (i.e., new or returning)
+            $stmt = $conn->prepare("SELECT COUNT(*) FROM lunch_fees WHERE admission_no = ?");
+            $stmt->bind_param("s", $admission_no);
+            $stmt->execute();
+            $stmt->bind_result($lunch_count);
+            $stmt->fetch();
+            $stmt->close();
+
+            $is_new_student = ($lunch_count === 0);
+
+            // Fetch all terms
             $terms_res = $conn->query("SELECT id, term_number, year, start_date, end_date FROM terms ORDER BY start_date ASC");
             if (!$terms_res || $terms_res->num_rows === 0) throw new Exception('No terms available for lunch payment.');
 
@@ -137,9 +213,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->close();
             }
 
-            // Changed variable here to avoid overwriting $term
             while ($amount > 0 && ($termRow = $terms_res->fetch_assoc())) {
                 $termId = $termRow['id'];
+
+                // ✅ If new student, only allow processing the current term
+                if ($is_new_student && $termId != $current_term_id) {
+                    continue;
+                }
+
                 $daysInTerm = (strtotime($termRow['end_date']) - strtotime($termRow['start_date'])) / 86400 + 1;
                 $total_weeks = ceil($daysInTerm / 5);
 
@@ -152,6 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $startWeek = $lastWeek ? ($lastWeek['balance'] == 0 ? $lastWeek['week_number'] + 1 : $lastWeek['week_number']) : 1;
 
                 for ($wk = $startWeek; $wk <= $total_weeks && $amount > 0; $wk++) {
+                    // Fetch or create the week's lunch record
                     $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ?");
                     $stmt->bind_param("sii", $admission_no, $termId, $wk);
                     $stmt->execute();
@@ -170,9 +252,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($valid_days as $dayName) {
                         if ($amount <= 0) break;
 
+                        // Skip if public holiday or not present
                         $stmt = $conn->prepare("
                             SELECT d.id, d.is_public_holiday,
-                                   a.status IS NULL OR a.status = 'Present' AS is_present
+                                  a.status IS NULL OR a.status = 'Present' AS is_present
                             FROM days d
                             LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
                             LEFT JOIN weeks w ON w.id = d.week_id
@@ -206,22 +289,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // If payment still remains after the last week → store as carry_forward
                 if ($amount > 0 && $wk > $total_weeks) {
                     $lastWeekNum = min($total_weeks, $startWeek);
                     $stmt = $conn->prepare("UPDATE lunch_fees SET carry_forward = carry_forward + ? WHERE admission_no = ? AND term_id = ? AND week_number = ?");
                     $stmt->bind_param("dsii", $amount, $admission_no, $termId, $lastWeekNum);
                     $stmt->execute();
                     $stmt->close();
+
                     $amount = 0;
                 }
             }
 
+            // Log transaction
             $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type)
                 VALUES (?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("ssssds", $name, $student_class, $admission_no, $receipt_number, $original_amt, $payment_type);
             $stmt->execute();
             $stmt->close();
         }
+
 
         // --- Process School Fee ---
         if ($school_fee_amount > 0) {
@@ -256,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // --- Prepare balances for response ---
         $paid_details = [];
 
-        // School Fee
+        // ======== School Fee ========
         if ($school_fee_amount > 0) {
             $stmt = $conn->prepare("SELECT amount_paid, total_fee, balance FROM school_fees WHERE admission_no=? LIMIT 1");
             $stmt->bind_param("s", $admission_no);
@@ -273,7 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Other Fees
+        // ======== Other Fees ========
         foreach ($fees as $fee_type) {
             $amount_paid = floatval($amounts[$fee_type]);
             if ($amount_paid <= 0 || in_array($fee_type, ['School Fee', 'Lunch Fee'])) continue;
@@ -283,16 +370,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 FROM others
                 WHERE admission_no=? AND fee_type=? AND term=?
             ");
-            $stmt->bind_param("sss", $admission_no, $fee_type, $term); // term is still string
+            $stmt->bind_param("sss", $admission_no, $fee_type, $term);
             $stmt->execute();
             $fee = $stmt->get_result()->fetch_assoc();
             $stmt->close();
 
-            if ($fee && $fee['total_amount'] !== null) {
-                $balance = max(0, floatval($fee['total_amount']) - floatval($fee['total_paid']));
-            } else {
-                $balance = 0;
-            }
+            $balance = ($fee && $fee['total_amount'] !== null)
+                ? max(0, floatval($fee['total_amount']) - floatval($fee['total_paid']))
+                : 0;
 
             $paid_details[] = [
                 'fee_type' => $fee_type,
@@ -301,20 +386,221 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         }
 
-        // Lunch Fee
+        // ======== Helper function: Calculate Previous Terms Lunch Balance ========
+        function calculatePreviousLunchBalance($conn, $admission_no, $current_term_number, $per_day_fee) {
+            $prev_balance = 0;
+
+            $terms_stmt = $conn->prepare("SELECT id FROM terms WHERE term_number < ?");
+            $terms_stmt->bind_param("i", $current_term_number);
+            $terms_stmt->execute();
+            $terms_res = $terms_stmt->get_result();
+
+            while ($term_row = $terms_res->fetch_assoc()) {
+                $prev_term_id = (int)$term_row['id'];
+
+                $pay_stmt = $conn->prepare("
+                    SELECT week_number, monday, tuesday, wednesday, thursday, friday
+                    FROM lunch_fees
+                    WHERE admission_no = ? AND term_id = ?
+                    ORDER BY week_number ASC
+                ");
+                $pay_stmt->bind_param("si", $admission_no, $prev_term_id);
+                $pay_stmt->execute();
+                $pay_result = $pay_stmt->get_result();
+
+                if ($pay_result->num_rows === 0) {
+                    $pay_stmt->close();
+                    continue;
+                }
+
+                $last_paid_week = 0;
+                $last_paid_day_index = -1;
+                $last_paid_amount = 0;
+                $day_list = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+
+                while ($row = $pay_result->fetch_assoc()) {
+                    foreach ($day_list as $i => $day) {
+                        $amt = floatval($row[$day]);
+                        if ($amt > 0) {
+                            $last_paid_week = (int)$row['week_number'];
+                            $last_paid_day_index = $i;
+                            $last_paid_amount = $amt;
+                        }
+                    }
+                }
+                $pay_stmt->close();
+
+                $day_stmt = $conn->prepare("
+                    SELECT d.day_name, w.week_number, d.is_public_holiday, a.status
+                    FROM days d
+                    JOIN weeks w ON d.week_id = w.id
+                    LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
+                    WHERE w.term_id = ?
+                    ORDER BY w.week_number ASC, FIELD(d.day_name, 'Monday','Tuesday','Wednesday','Thursday','Friday')
+                ");
+                $day_stmt->bind_param("si", $admission_no, $prev_term_id);
+                $day_stmt->execute();
+                $days_result = $day_stmt->get_result();
+
+                $day_index_map = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3, 'Friday' => 4];
+                $partial_day_checked = false;
+
+                while ($row = $days_result->fetch_assoc()) {
+                    $week = (int)$row['week_number'];
+                    $day_name = $row['day_name'];
+                    $day_index = $day_index_map[$day_name] ?? -1;
+                    $is_holiday = (int)$row['is_public_holiday'];
+                    $status = $row['status'] ?? 'Present';
+
+                    if ($day_index === -1 || $is_holiday === 1 || $status === 'Absent') continue;
+
+                    if (!$partial_day_checked && $week === $last_paid_week && $day_index === $last_paid_day_index) {
+                        if ($last_paid_amount < $per_day_fee) {
+                            $prev_balance += $per_day_fee - $last_paid_amount;
+                        }
+                        $partial_day_checked = true;
+                        continue;
+                    }
+
+                    if ($week < $last_paid_week || ($week === $last_paid_week && $day_index <= $last_paid_day_index)) {
+                        continue;
+                    }
+
+                    $prev_balance += $per_day_fee;
+                }
+
+                $day_stmt->close();
+            }
+
+            $terms_stmt->close();
+            return $prev_balance;
+        }
+
+
+        // ======== Lunch Fee Balance ======== 
         if ($lunch_amount > 0) {
-            $stmt = $conn->prepare("SELECT SUM(balance) AS balance FROM lunch_fees WHERE admission_no=?");
-            $stmt->bind_param("s", $admission_no);
-            $stmt->execute();
-            $lunch = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            $per_day_fee = 70;
+            $day_map = ['monday' => 0, 'tuesday' => 1, 'wednesday' => 2, 'thursday' => 3, 'friday' => 4];
+            $today = date('Y-m-d');
+            $current_term_balance = 0;
+            $graduation_date = $graduation_date ?? null;
+            $current_term_start = $current_term_start ?? date('Y-m-d', strtotime('-1 month'));
+
+            error_log("Starting lunch balance calc for admission_no=$admission_no");
+            error_log("DEBUG: current_term_id=$current_term_id, current_term_number=$current_term_number");
+
+            // Skip if graduated before current term
+            if ($graduation_date && strtotime($graduation_date) < strtotime($current_term_start)) {
+                error_log("Skipping lunch balance calc: graduated before current term.");
+                $current_term_balance = 0;
+            } else {
+                $weeks_res = $conn->prepare("SELECT id, week_number FROM weeks WHERE term_id = ?");
+                $weeks_res->bind_param("i", $current_term_id);
+                $weeks_res->execute();
+                $weeks_result = $weeks_res->get_result();
+
+                while ($week = $weeks_result->fetch_assoc()) {
+                    $week_id = $week['id'];
+                    $week_number = $week['week_number'];
+                    error_log("Processing week: $week_number (week_id=$week_id)");
+
+                    $days_stmt = $conn->prepare("SELECT id, day_name, is_public_holiday FROM days WHERE week_id = ?");
+                    $days_stmt->bind_param("i", $week_id);
+                    $days_stmt->execute();
+                    $days_result = $days_stmt->get_result();
+
+                    while ($day = $days_result->fetch_assoc()) {
+                        $day_id = $day['id'];
+                        $day_name_raw = $day['day_name'];
+                        $day_name = strtolower($day_name_raw);
+                        $is_holiday = (int)$day['is_public_holiday'];
+
+                        if (!isset($day_map[$day_name])) {
+                            error_log("Skipping $day_name_raw: not a valid weekday.");
+                            continue;
+                        }
+                        if ($is_holiday) {
+                            error_log("Skipping $day_name_raw: public holiday.");
+                            continue;
+                        }
+
+                        $week_offset = $week_number - 1;
+                        $day_offset = $day_map[$day_name];
+                        $day_date = date('Y-m-d', strtotime("$current_term_start +{$week_offset} weeks +{$day_offset} days"));
+
+                        if ($day_date > $today) {
+                            error_log("Skipping $day_name_raw on $day_date: date is in the future.");
+                            continue;
+                        }
+
+                        // Attendance
+                        $att_stmt = $conn->prepare("
+                            SELECT status FROM attendance
+                            WHERE admission_no = ? AND term_number = ? AND week_number = ? AND day_id = ?
+                        ");
+                        $att_stmt->bind_param("siii", $admission_no, $current_term_number, $week_number, $day_id);
+                        $att_stmt->execute();
+                        $att_row = $att_stmt->get_result()->fetch_assoc();
+                        $att_stmt->close();
+
+                        $att_status = $att_row['status'] ?? 'Present';
+                        error_log("Attendance on $day_name_raw ($day_date): $att_status");
+
+                        if (strcasecmp($att_status, 'Absent') === 0) {
+                            error_log("Skipping $day_name_raw ($day_date): student was absent.");
+                            continue;
+                        }
+
+                        // Lunch paid check
+                        $lunch_stmt = $conn->prepare("
+                            SELECT monday, tuesday, wednesday, thursday, friday
+                            FROM lunch_fees
+                            WHERE admission_no = ? AND term_id = ? AND week_number = ?
+                        ");
+                        $lunch_stmt->bind_param("sii", $admission_no, $current_term_id, $week_number);
+                        $lunch_stmt->execute();
+                        $lunch_row = $lunch_stmt->get_result()->fetch_assoc();
+                        $lunch_stmt->close();
+
+                        $day_paid = $lunch_row[$day_name] ?? 0;
+                        $unpaid = max(0, $per_day_fee - $day_paid);
+                        $current_term_balance += $unpaid;
+
+                        error_log("Lunch check: Week $week_number, $day_name_raw ($day_date) - Paid: $day_paid, Unpaid: $unpaid");
+                    }
+                    $days_stmt->close();
+                }
+                $weeks_res->close();
+            }
+
+            // ======== PREVIOUS TERMS LUNCH BALANCE ========
+            $prev_balance = calculatePreviousLunchBalance($conn, $admission_no, $current_term_number, $per_day_fee);
+
+            // ======== SUBTRACT CARRY FORWARD FROM PREVIOUS LUNCH FEES ========
+            $carry_stmt = $conn->prepare("
+                SELECT IFNULL(SUM(carry_forward),0) AS carry
+                FROM lunch_fees
+                WHERE admission_no = ? AND term_id < ?
+            ");
+            $carry_stmt->bind_param("si", $admission_no, $current_term_id);
+            $carry_stmt->execute();
+            $carry_stmt->bind_result($carry_forward);
+            $carry_stmt->fetch();
+            $carry_stmt->close();
+
+            // ======== FINAL TOTAL LUNCH BALANCE ========
+            $total_balance_before_carry = $prev_balance + $current_term_balance;
+            $lunch_balance = max(0, $total_balance_before_carry - $carry_forward);
+
+            error_log("Final lunch balance: current=$current_term_balance, prev=$prev_balance, carry=$carry_forward, total=$lunch_balance");
 
             $paid_details[] = [
                 'fee_type' => 'Lunch Fee',
                 'paid' => floatval($lunch_amount),
-                'balance' => floatval($lunch['balance'] ?? 0)
+                'balance' => floatval($lunch_balance)
             ];
         }
+
 
         if (ob_get_length()) {
             ob_clean();
@@ -590,9 +876,12 @@ $conn->close();
       <form id="feeForm">
         <!-- Student Search -->
         <div class="form-group">
-          <input type="text" id="student-search" placeholder="Search student..." autocomplete="off">
-          <input type="hidden" id="admission_no" name="admission_no">
-          <input type="hidden" id="student_name" name="student_name">
+            <input type="text" id="student-search" placeholder="Search student..." autocomplete="off" 
+                  value="<?= htmlspecialchars($prefill_name); ?>">
+            <input type="hidden" id="admission_no" name="admission_no" 
+                  value="<?= htmlspecialchars($prefill_adm); ?>">
+            <input type="hidden" id="student_name" name="student_name" 
+                  value="<?= htmlspecialchars($prefill_name); ?>">
           <div id="suggestions"></div>
         </div>
 
@@ -664,6 +953,18 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  /* ===== Keep dropdown open based on current page ===== */
+  const currentUrl = window.location.pathname.split("/").pop();
+  document.querySelectorAll(".dropdown").forEach(drop => {
+    const links = drop.querySelectorAll("a");
+    links.forEach(link => {
+      const linkUrl = link.getAttribute("href");
+      if (linkUrl && linkUrl.includes(currentUrl)) {
+        drop.classList.add("open");
+      }
+    });
+  });
+
   /* ===== Sidebar toggle for mobile ===== */
   const sidebar = document.getElementById('sidebar');
   const toggleBtn = document.querySelector('.toggle-btn');
@@ -722,6 +1023,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Live search
     $('#student-search').on('input', function () {
       const query = $(this).val().trim();
+      $('#student_name').val(query); // keep hidden updated with typed name
       if (query.length === 0) {
         $('#suggestions').empty();
         return;
@@ -774,7 +1076,12 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 
-    // AJAX form submission
+    // ===== Cancel button reload =====
+    $(document).on('click', '#cancelBtn', function () {
+      window.location.reload();
+    });
+
+    // ===== AJAX form submission =====
     $('#feeForm').on('submit', function (e) {
       e.preventDefault();
       $('#message').text('');
@@ -792,6 +1099,7 @@ document.addEventListener("DOMContentLoaded", function () {
           if (res.success) {
             $('#feeForm')[0].reset();
             $('#admission_no').val('');
+            $('#student_name').val('');
 
             if (res.paid_details && res.paid_details.length > 0) {
               const date = new Date().toLocaleDateString();
@@ -804,36 +1112,36 @@ document.addEventListener("DOMContentLoaded", function () {
               let receiptHtml = `
                 <div class="receipt" style="font-family:Arial;padding:20px;width:450px;">
                   <div class="title" style="font-size:18px;font-weight:bold;">Kayron Junior School</div>
-                  <div style="text-align:center;">Tel: 0703373151 / 0740047243</div>
+                  <div style="text-align:center;">Tel: 0711686866 / 0731156576</div>
                   <hr>
                   <strong>Official Receipt</strong><br>
-                  Date: <strong>${date}</strong><br>
-                  Receipt No: <strong>${res.receipt_number}</strong><br>
-                  Admission No: <strong>${admissionNo}</strong><br>
-                  Student Name: <strong>${studentName}</strong><br>
-                  Payment Type: <strong>${paymentType}</strong>
+                  Date: ${date}<br>
+                  Receipt No: ${res.receipt_number}<br>
+                  Admission No: ${admissionNo}<br>
+                  Student Name: ${studentName}<br>
+                  Payment Type: ${paymentType}
                   <hr>
                   <strong>Fee Payments</strong>
                   <table border="1" cellspacing="0" cellpadding="5" style="width:100%;margin-top:10px;">
                     <tr>
                       <th>Fee Type</th>
-                      <th>Paid Now (KES)</th>
+                      <th>Amount Paid (KES)</th>
                       <th>Balance (KES)</th>
                     </tr>`;
 
               res.paid_details.forEach(fee => {
                 receiptHtml += `
-                    <tr>
-                      <td>${fee.fee_type}</td>
-                      <td style="text-align:right;">${parseFloat(fee.paid).toFixed(2)}</td>
-                      <td style="text-align:right;">${(fee.balance === '' || fee.balance == null) ? '' : parseFloat(fee.balance).toFixed(2)}</td>
-                    </tr>`;
+                  <tr>
+                    <td>${fee.fee_type}</td>
+                    <td style="text-align:right;">${parseFloat(fee.paid).toFixed(2)}</td>
+                    <td style="text-align:right;">${(fee.balance === '' || fee.balance == null) ? '' : parseFloat(fee.balance).toFixed(2)}</td>
+                  </tr>`;
               });
 
               receiptHtml += `
                   </table>
-                  <div style="margin-top:10px;font-weight:bold;">TOTAL PAID NOW: KES ${total_paid_now.toFixed(2)}</div>
-                  <div style="margin-top:5px;font-weight:bold;">TOTAL BALANCE: KES ${total_balance.toFixed(2)}</div>
+                  <div style="margin-top:10px;font-weight:bold;">Amount Paid: KES ${total_paid_now.toFixed(2)}</div>
+                  <div style="margin-top:5px;font-weight:bold;">Balance: KES ${total_balance.toFixed(2)}</div>
                   <div style="margin-top:10px;">Thank you for trusting in our school. Always working to output the best!</div>
                 </div>
               `;
@@ -849,6 +1157,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     <script>
                       window.onload = function() {
                         window.print();
+                        window.onafterprint = function() {
+                          window.close();
+                          window.opener.location.reload(); // refresh main page
+                        };
                       };
                     <\/script>
                   </body>
@@ -868,6 +1180,5 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 </script>
-
 </body>
 </html>

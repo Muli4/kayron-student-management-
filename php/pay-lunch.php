@@ -34,58 +34,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $student['name'];
     $class = $student['class'];
 
-    // 2. Get ALL terms and also determine the current/latest term
+    // 2. Get all terms ordered by start date
     $terms_res = $conn->query("SELECT id, term_number, year, start_date, end_date FROM terms ORDER BY start_date ASC");
     if (!$terms_res || $terms_res->num_rows === 0) {
         echo "<script>alert('No terms available.'); window.location.href='pay-lunch.php';</script>";
         exit();
     }
 
-    // Get the last row for current term
     $terms_arr = $terms_res->fetch_all(MYSQLI_ASSOC);
-    $current_term = end($terms_arr);  // Last (latest) term
+    $current_term = end($terms_arr); // Latest term
+    $current_term_id = $current_term['id'];
     $current_term_number = $current_term['term_number'];
 
-    // Generate receipt number using current term
+    // Generate receipt number
     $randomDigits = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
     $receipt_no = "LF-T{$current_term_number}-{$randomDigits}";
 
-    // Reset pointer for looping through terms
-    reset($terms_arr);
-
-    // 3. Helper to insert a week row
+    // Helper: Insert new week
     function insertWeek($conn, $admission_no, $term_id, $week_num, $payment_type, $daily_fee) {
         $total_weekly = $daily_fee * 5;
-        $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, term_id, total_paid, balance, week_number, total_amount, payment_type, carry_forward) VALUES (?, ?, 0, ?, ?, ?, ?, 0)");
+        $stmt = $conn->prepare("
+            INSERT INTO lunch_fees 
+                (admission_no, term_id, total_paid, balance, week_number, total_amount, payment_type, carry_forward) 
+            VALUES (?, ?, 0, ?, ?, ?, ?, 0)
+        ");
         $stmt->bind_param("sidiss", $admission_no, $term_id, $total_weekly, $week_num, $total_weekly, $payment_type);
         $stmt->execute();
         $stmt->close();
     }
 
-    // 4. Process payments per term, oldest-first
-    foreach ($terms_arr as $term) {
+    // === Determine previous term if any
+    $stmt = $conn->prepare("
+        SELECT * FROM terms 
+        WHERE id < ? 
+        ORDER BY id DESC LIMIT 1
+    ");
+    $stmt->bind_param("i", $current_term_id);
+    $stmt->execute();
+    $previous_term_res = $stmt->get_result();
+    $stmt->close();
+
+    $has_previous_term = $previous_term_res->num_rows > 0;
+    $previous_term_id = null;
+    $has_previous_lunch = false;
+
+    if ($has_previous_term) {
+        $previous_term = $previous_term_res->fetch_assoc();
+        $previous_term_id = $previous_term['id'];
+
+        // Check if student had lunch records in previous term
+        $stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM lunch_fees WHERE admission_no = ? AND term_id = ?");
+        $stmt->bind_param("si", $admission_no, $previous_term_id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        $has_previous_lunch = $row['cnt'] > 0;
+    }
+
+    // === Decide payment flow
+    $pay_terms = [];
+    if (!$has_previous_term || !$has_previous_lunch) {
+        // Case 1 & 2: No prev term OR prev term but no lunch → current term only
+        $pay_terms = [$current_term];
+    } else {
+        // Case 3: Prev term exists and has lunch → prev term then current term
+        $pay_terms = [$previous_term, $current_term];
+    }
+
+        // === Process payments
+    foreach ($pay_terms as $term) {
         if ($amount <= 0) break;
 
         $termId = $term['id'];
 
-        // Calculate total term weeks
+        // Weeks in term
         $daysInTerm = (strtotime($term['end_date']) - strtotime($term['start_date'])) / 86400 + 1;
         $total_weeks = ceil($daysInTerm / 5);
 
-        // Find last paid day by week from lunch_fees
-        $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? ORDER BY week_number DESC LIMIT 1");
+        // Get existing records
+        $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? ORDER BY week_number ASC");
         $stmt->bind_param("si", $admission_no, $termId);
         $stmt->execute();
-        $lastWeek = $stmt->get_result()->fetch_assoc();
+        $termRecords = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        $startWeek = $lastWeek ? ($lastWeek['balance'] == 0 ? $lastWeek['week_number'] + 1 : $lastWeek['week_number']) : 1;
+        $hasRecords = count($termRecords) > 0;
+        $startWeek = $hasRecords
+            ? ($termRecords[count($termRecords) - 1]['balance'] == 0
+                ? $termRecords[count($termRecords) - 1]['week_number'] + 1
+                : $termRecords[count($termRecords) - 1]['week_number'])
+            : 1;
 
         for ($wk = $startWeek; $wk <= $total_weeks && $amount > 0; $wk++) {
-            if ($amount <= 0) break;
+            if (!$hasRecords) {
+                insertWeek($conn, $admission_no, $termId, $wk, $payment_type, $daily_fee);
+            }
 
-            // Ensure week record exists
-            $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ?");
+            // Fetch or create week
+            $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ? LIMIT 1");
             $stmt->bind_param("sii", $admission_no, $termId, $wk);
             $stmt->execute();
             $weekData = $stmt->get_result()->fetch_assoc();
@@ -93,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$weekData) {
                 insertWeek($conn, $admission_no, $termId, $wk, $payment_type, $daily_fee);
-                $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ?");
+                $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ? LIMIT 1");
                 $stmt->bind_param("sii", $admission_no, $termId, $wk);
                 $stmt->execute();
                 $weekData = $stmt->get_result()->fetch_assoc();
@@ -103,32 +150,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($valid_days as $dayName) {
                 if ($amount <= 0) break;
 
-                // Grab day entry for holiday/attendance check
-                $stmt = $conn->prepare("
-                    SELECT d.id, d.is_public_holiday,
-                           a.status IS NULL OR a.status = 'Present' AS is_present
-                    FROM days d
-                    LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
-                    LEFT JOIN weeks w ON w.id = d.week_id
-                    WHERE w.term_id = ? AND w.week_number = ? AND d.day_name = ?
-                ");
-                $stmt->bind_param("siis", $admission_no, $termId, $wk, $dayName);
-                $stmt->execute();
-                $dd = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
+                $skipDay = false;
+                if ($hasRecords) {
+                    $stmt = $conn->prepare("
+                        SELECT d.is_public_holiday,
+                              (a.status IS NULL OR a.status = 'Present') AS is_present
+                        FROM days d
+                        LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
+                        LEFT JOIN weeks w ON w.id = d.week_id
+                        WHERE w.term_id = ? AND w.week_number = ? AND d.day_name = ?
+                    ");
+                    $stmt->bind_param("siis", $admission_no, $termId, $wk, $dayName);
+                    $stmt->execute();
+                    $dd = $stmt->get_result()->fetch_assoc();
+                    $stmt->close();
 
-                if (!$dd || $dd['is_public_holiday'] || !$dd['is_present']) {
-                    continue; // skip holidays or absence
+                    if ($dd && ($dd['is_public_holiday'] || !$dd['is_present'])) {
+                        $skipDay = true;
+                    }
                 }
+
+                if ($skipDay) continue;
 
                 $paidToday = floatval($weekData[strtolower($dayName)]);
                 if ($paidToday >= $daily_fee) continue;
 
                 $topUp = min($daily_fee - $paidToday, $amount);
-
                 $stmt = $conn->prepare("
                     UPDATE lunch_fees
-                    SET " . strtolower($dayName) . " = " . strtolower($dayName) . " + ?, total_paid = total_paid + ?, balance = balance - ?
+                    SET " . strtolower($dayName) . " = " . strtolower($dayName) . " + ?,
+                        total_paid = total_paid + ?, balance = balance - ?
                     WHERE id = ?
                 ");
                 $stmt->bind_param("dddi", $topUp, $topUp, $topUp, $weekData['id']);
@@ -136,25 +187,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->close();
 
                 $amount -= $topUp;
-                $weekData[strtolower($dayName)] += $topUp;
-                $weekData['balance'] -= $topUp;
             }
         }
 
-        // Carry forward if still amount leftover after all weeks
-        if ($amount > 0 && $wk > $total_weeks) {
-            $lastWeekNum = min($total_weeks, $startWeek);
-            $stmt = $conn->prepare("UPDATE lunch_fees SET carry_forward = carry_forward + ? WHERE admission_no = ? AND term_id = ? AND week_number = ?");
-            $stmt->bind_param("dsii", $amount, $admission_no, $termId, $lastWeekNum);
+        // ===== Store leftover as carry forward if amount remains and this is the current term =====
+        if ($termId == $current_term_id && $amount > 0) {
+            $stmt = $conn->prepare("
+                SELECT id FROM lunch_fees 
+                WHERE admission_no = ? AND term_id = ? 
+                ORDER BY week_number DESC LIMIT 1
+            ");
+            $stmt->bind_param("si", $admission_no, $termId);
             $stmt->execute();
+            $lastWeek = $stmt->get_result()->fetch_assoc();
             $stmt->close();
-            $amount = 0;
+
+            if ($lastWeek) {
+                $stmt = $conn->prepare("UPDATE lunch_fees SET carry_forward = carry_forward + ? WHERE id = ?");
+                $stmt->bind_param("di", $amount, $lastWeek['id']);
+                $stmt->execute();
+                $stmt->close();
+            } else {
+                // No records at all — create week 1
+                insertWeek($conn, $admission_no, $termId, 1, $payment_type, $daily_fee);
+                $stmt = $conn->prepare("SELECT id FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = 1");
+                $stmt->bind_param("si", $admission_no, $termId);
+                $stmt->execute();
+                $week1 = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+
+                if ($week1) {
+                    $stmt = $conn->prepare("UPDATE lunch_fees SET carry_forward = carry_forward + ? WHERE id = ?");
+                    $stmt->bind_param("di", $amount, $week1['id']);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+
+            $amount = 0; // mark leftover as stored
         }
     }
 
-    // 5. Log transaction with generated receipt number
-    $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type)
-        VALUES (?, ?, ?, ?, ?, ?)");
+
+    // 5. Store transaction log
+    $stmt = $conn->prepare("
+        INSERT INTO lunch_fee_transactions 
+            (name, class, admission_no, receipt_number, amount_paid, payment_type)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ");
     $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amt, $payment_type);
     $stmt->execute();
     $stmt->close();
@@ -165,6 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $conn->close();
 ?>
+
 
 
 
@@ -318,9 +399,9 @@ select:focus {
                 <label for="payment_method">Payment Method</label>
                 <select id="payment_method" name="payment_method" required>
                   <option value="">-- Select Payment Method --</option>
-                  <option value="MPESA">MPESA</option>
                   <option value="Cash">Cash</option>
-                  <option value="Bank">Bank</option>
+                  <!--<option value="MPESA">MPESA</option>
+                  <option value="Bank">Bank</option>-->
                 </select>
               </div>
 
@@ -334,7 +415,7 @@ select:focus {
     </div>
     <?php include '../includes/footer.php'; ?>
 
-    <script>
+<script>
 $(document).ready(function () {
   // Student search AJAX live suggestions
   $('#student-search').on('input', function () {
@@ -408,14 +489,22 @@ document.addEventListener("DOMContentLoaded", function () {
   document.querySelectorAll(".dropdown-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const parent = btn.parentElement;
-
       document.querySelectorAll(".dropdown").forEach(drop => {
-        if (drop !== parent) {
-          drop.classList.remove("open");
-        }
+        if (drop !== parent) drop.classList.remove("open");
       });
-
       parent.classList.toggle("open");
+    });
+  });
+
+  /* ===== Keep dropdown open based on current page ===== */
+  const currentPage = window.location.pathname.split("/").pop();
+  document.querySelectorAll(".dropdown").forEach(drop => {
+    const links = drop.querySelectorAll("a");
+    links.forEach(link => {
+      const href = link.getAttribute("href");
+      if (href && href.includes(currentPage)) {
+        drop.classList.add("open");
+      }
     });
   });
 
@@ -437,9 +526,8 @@ document.addEventListener("DOMContentLoaded", function () {
     overlay.classList.remove('show');
   });
 
-  /* ===== Auto logout after 5 minutes inactivity (no alert) ===== */
+  /* ===== Auto logout after 5 minutes inactivity ===== */
   let logoutTimer;
-
   function resetLogoutTimer() {
     clearTimeout(logoutTimer);
     logoutTimer = setTimeout(() => {
@@ -447,15 +535,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }, 300000); // 300,000ms = 5 minutes
   }
 
-  // Reset timer on user activity
   ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
     document.addEventListener(evt, resetLogoutTimer);
   });
 
-  // Start the timer on page load
   resetLogoutTimer();
 });
 </script>
-
 </body>
  </html>

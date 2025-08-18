@@ -428,7 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
-        $message = "Bulk weeks and days registered successfully.";
+        $message = "All the term weeks and days registered successfully.";
     }
 }
 ?>
@@ -823,7 +823,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   <?php include '../includes/footer.php'; ?>
 
- <script>
+<script>
   if (window.history.replaceState) {
     window.history.replaceState(null, null, window.location.href);
   }
@@ -840,7 +840,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     /* ===== Real-time clock ===== */
     function updateClock() {
       const clockElement = document.getElementById('realTimeClock');
-      if (clockElement) { // removed window.innerWidth check to show clock on all devices
+      if (clockElement) {
         const now = new Date();
         const timeString = now.toLocaleTimeString();
         clockElement.textContent = timeString;
@@ -864,6 +864,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
     });
 
+    /* ===== Keep dropdown open based on current page ===== */
+    const currentPage = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+      const links = drop.querySelectorAll("a");
+      links.forEach(link => {
+        const href = link.getAttribute("href");
+        if (href && href.includes(currentPage)) {
+          drop.classList.add("open");
+        }
+      });
+    });
+
     /* ===== Sidebar toggle for mobile ===== */
     const sidebar = document.getElementById('sidebar');
     const toggleBtn = document.querySelector('.toggle-btn');
@@ -882,26 +894,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       overlay.classList.remove('show');
     });
 
-    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    /* ===== Auto logout after 5 minutes inactivity ===== */
     let logoutTimer;
-
     function resetLogoutTimer() {
       clearTimeout(logoutTimer);
       logoutTimer = setTimeout(() => {
-        // Silent logout - redirect to logout page
-        window.location.href = 'logout.php'; // Change to your logout URL
+        window.location.href = 'logout.php';
       }, 300000); // 5 minutes
     }
 
-    // Reset timer on user activity
     ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
       document.addEventListener(evt, resetLogoutTimer);
     });
 
-    // Start the timer when page loads
     resetLogoutTimer();
   });
 </script>
+
 
 </body>
 </html>

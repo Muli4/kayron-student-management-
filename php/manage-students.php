@@ -4,17 +4,59 @@ if (!isset($_SESSION['username'])) {
     header("Location: ../index.php");
     exit();
 }
-include 'db.php'; // Include database connection
+
+include 'db.php'; // Database connection
 
 $classes = ['babyclass', 'intermediate', 'PP1', 'PP2', 'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'];
 
+// ===== AJAX live filter request ===== //
+if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+    $class_filter = $_GET['class'] ?? '';
+    $admission_filter = $_GET['admission'] ?? '';
+
+    $sql = "SELECT * FROM student_records WHERE 1=1";
+    $params = [];
+    $types = '';
+
+    if ($class_filter !== '') {
+        $sql .= " AND class = ?";
+        $params[] = $class_filter;
+        $types .= 's';
+    }
+
+    if ($admission_filter !== '') {
+        // Filter by middle part of admission number (between KJS- and -YY)
+        $sql .= " AND SUBSTRING_INDEX(SUBSTRING_INDEX(admission_no, '-', -2), '-', 1) LIKE ?";
+        $params[] = $admission_filter . '%';
+        $types .= 's';
+    }
+
+    $stmt = $conn->prepare($sql);
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $students = [];
+
+    while ($row = $result->fetch_assoc()) {
+        $students[] = $row;
+    }
+
+    header('Content-Type: application/json');
+    echo json_encode($students);
+    exit;
+}
+
+// ===== POST: Delete / Update / Fetch single student ===== //
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
         $admission_no = $_POST['admission_no'];
 
         if ($action === 'delete') {
-            // Delete student and related records
+            // Delete from related tables
             $related_tables = [
                 'book_purchases',
                 'lunch_fees',
@@ -31,6 +73,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $stmt->execute();
             }
 
+            // Delete from student_records
             $stmt = $conn->prepare("DELETE FROM student_records WHERE admission_no = ?");
             $stmt->bind_param("s", $admission_no);
             $stmt->execute();
@@ -39,7 +82,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             exit;
 
         } elseif ($action === 'update') {
-            // Get all editable fields
+            // Update student
             $name       = $_POST['name'];
             $dob        = $_POST['dob'];
             $gender     = $_POST['gender'];
@@ -48,9 +91,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $religion   = $_POST['religion'];
             $guardian   = $_POST['guardian'];
             $phone      = $_POST['phone'];
-            $birth_cert = $_POST['birth_cert']; // NEW FIELD
+            $birth_cert = $_POST['birth_cert'];
 
-            // Update query now includes birth_cert
             $stmt = $conn->prepare("UPDATE student_records 
                 SET name=?, dob=?, gender=?, class=?, term=?, religion=?, guardian=?, phone=?, birth_cert=?
                 WHERE admission_no=?");
@@ -62,7 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
     } elseif (isset($_POST['admission_no'])) {
-        // Fetch student record for editing
+        // Fetch single student
         $admission_no = $_POST['admission_no'];
         $stmt = $conn->prepare("SELECT * FROM student_records WHERE admission_no = ?");
         $stmt->bind_param("s", $admission_no);
@@ -70,7 +112,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $result = $stmt->get_result();
 
         if ($student = $result->fetch_assoc()) {
-            // Replace NULLs with empty strings for all fields
             foreach ($student as $key => $value) {
                 $student[$key] = $value ?? '';
             }
@@ -82,21 +123,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 
-// Load student list for display
-$class_filter = isset($_GET['class']) ? $_GET['class'] : '';
-$sql = "SELECT * FROM student_records";
-if ($class_filter != '') {
-    $sql .= " WHERE class = ?";
+// ===== FILTER logic for initial page load ===== //
+$class_filter = $_GET['class'] ?? '';
+$admission_filter = $_GET['admission'] ?? '';
+
+$sql = "SELECT * FROM student_records WHERE 1=1";
+$params = [];
+$types = '';
+
+if ($class_filter !== '') {
+    $sql .= " AND class = ?";
+    $params[] = $class_filter;
+    $types .= 's';
+}
+
+if ($admission_filter !== '') {
+    // Filter by numeric part of admission number
+    $sql .= " AND SUBSTRING_INDEX(SUBSTRING_INDEX(admission_no, '-', -2), '-', 1) LIKE ?";
+    $params[] = "%$admission_filter%";
+    $types .= 's';
 }
 
 $stmt = $conn->prepare($sql);
-if ($class_filter != '') {
-    $stmt->bind_param("s", $class_filter);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
 }
 $stmt->execute();
 $result = $stmt->get_result();
 ?>
-
 
 
 <!DOCTYPE html>
@@ -109,95 +163,110 @@ $result = $stmt->get_result();
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <style>
-    /* ===== Manage Students Page Styles ===== */
+/* ===== Manage Students Page Styles - Updated to match Balances page ===== */
 
 .manage-container {
     background: #fff;
-    padding: 1.5rem;
+    padding: 2rem;
     border-radius: 10px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     max-width: 1200px;
-    margin: 0 auto 2rem auto;
+    margin: 1rem auto 2rem auto;
 }
 
-/* Centered page title with icon */
 .manage-container h2 {
+    color: #1cc88a;
+    font-weight: 700;
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+    text-align: center;
     display: flex;
     justify-content: center;
     align-items: center;
     gap: 0.5rem;
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: #1cc88a;
-    margin-bottom: 1.5rem;
-    text-align: center;
 }
-.manage-container h2::before {
-    content: '\f234'; /* boxicons user icon Unicode */
-    font-family: 'boxicons' !important;
-    font-weight: 900;
-    color: #4e73df;
+
+.manage-container h2 i {
+    color: #1cc88a;
     font-size: 2rem;
 }
 
-/* Filter dropdown */
-#class-filter {
+/* Filters */
+#class-filter,
+#admission-filter {
     padding: 0.5rem 1rem;
     font-size: 1rem;
     border: 1.8px solid #4e73df;
     border-radius: 6px;
-    margin-bottom: 1.5rem;
     outline: none;
     transition: border-color 0.3s ease;
     cursor: pointer;
+    min-width: 150px;
 }
-#class-filter:focus {
+
+#class-filter:focus,
+#admission-filter:focus {
     border-color: #1cc88a;
 }
 
-/* Styled table */
+/* Table styling - bottom border only, hover scale */
 table {
+    margin-top: 20px;
     width: 100%;
     border-collapse: collapse;
-    font-size: 1rem;
+    font-size: 14px;
+    border: none; /* remove all borders */
 }
-table thead tr {
+
+table th,
+table td {
+    padding: 3px 5px;
+    border: none;
+    border-bottom: 1px solid #ddd; /* bottom only */
+    text-align: left;
+    transition: transform 0.2s;
+}
+
+table thead {
     background: linear-gradient(135deg, #4e73df, #1cc88a);
     color: white;
 }
-table th, table td {
-    padding: 0.75rem 1rem;
-    border: 1px solid #ddd;
-    text-align: left;
-    vertical-align: middle;
-}
-table tbody tr:hover {
-    background-color: #f0f9ff;
+
+table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
 }
 
-/* Buttons inside table */
+table tbody tr:hover {
+    background-color: #e6f7f1;
+    transform: scale(1.01);
+}
+
+/* Buttons */
 .edit-btn, .delete-btn {
     background: linear-gradient(135deg, #4e73df, #1cc88a);
     color: white;
     border: none;
-    padding: 0.3rem 0.7rem;
+    padding: 0.4rem 0.8rem;
     border-radius: 6px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.3s ease;
     margin-right: 0.4rem;
 }
+
 .edit-btn:hover {
     background: linear-gradient(135deg, #1cc88a, #4e73df);
 }
+
 .delete-btn {
     background: linear-gradient(135deg, #e74c3c, #c0392b);
 }
+
 .delete-btn:hover {
     background: linear-gradient(135deg, #c0392b, #e74c3c);
 }
 
-/* Modal styles */
+/* Modal and form styling (unchanged, already good) */
 .modal {
     position: fixed;
     z-index: 9999;
@@ -212,6 +281,7 @@ table tbody tr:hover {
     align-items: center;
     padding: 1rem;
 }
+
 .modal-content {
     background: #fff;
     border-radius: 10px;
@@ -224,7 +294,6 @@ table tbody tr:hover {
     overflow-y: auto;
 }
 
-/* Close button */
 .close {
     position: absolute;
     top: 1rem;
@@ -235,11 +304,8 @@ table tbody tr:hover {
     color: #999;
     transition: color 0.3s ease;
 }
-.close:hover {
-    color: #333;
-}
+.close:hover { color: #333; }
 
-/* Modal form labels with icon */
 #edit-form label {
     font-weight: 600;
     color: #1cc88a;
@@ -250,19 +316,6 @@ table tbody tr:hover {
     font-size: 0.95rem;
 }
 
-/* Add icons to labels */
-#edit-form label:nth-of-type(1)::before { content: '\f234'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Admission No (disabled) */
-#edit-form label:nth-of-type(2)::before { content: '\f24d'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Birth Certificate */
-#edit-form label:nth-of-type(3)::before { content: '\f234'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Name */
-#edit-form label:nth-of-type(4)::before { content: '\f073'; font-family: 'boxicons'; margin-right: 0.3rem; } /* DOB */
-#edit-form label:nth-of-type(5)::before { content: '\f222'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Gender */
-#edit-form label:nth-of-type(6)::before { content: '\f4d8'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Class */
-#edit-form label:nth-of-type(7)::before { content: '\f073'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Term */
-#edit-form label:nth-of-type(8)::before { content: '\f51e'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Religion */
-#edit-form label:nth-of-type(9)::before { content: '\f4d9'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Guardian */
-#edit-form label:nth-of-type(10)::before { content: '\f2b6'; font-family: 'boxicons'; margin-right: 0.3rem; } /* Phone */
-
-/* Inputs and selects in modal */
 #edit-form input[type="text"],
 #edit-form input[type="date"],
 #edit-form select {
@@ -281,7 +334,6 @@ table tbody tr:hover {
     border-color: #1cc88a;
 }
 
-/* Submit button in modal */
 #edit-form button[type="submit"] {
     background: linear-gradient(135deg, #4e73df, #1cc88a);
     color: white;
@@ -299,20 +351,13 @@ table tbody tr:hover {
     background: linear-gradient(135deg, #1cc88a, #4e73df);
 }
 
+/* Responsive */
 @media (max-width: 768px) {
-  #sidebar {
-    display: none !important;  /* Hide sidebar */
-  }
-
-  main.content {
-    margin-left: 0 !important; /* Remove sidebar space */
-    width: 100% !important;    /* Take full width */
-    padding: 1rem;             /* Optional: add some padding */
-  }
-
-  .dashboard-container {
-    display: block; /* remove any flex to stack elements */
-  }
+    #sidebar { display: none !important; }
+    main.content { margin-left: 0 !important; width: 100% !important; padding: 1rem; }
+    .dashboard-container { display: block; }
+    table { display: block; width: 100%; overflow-x: auto; white-space: nowrap; }
+    #class-filter, #admission-filter { width: 100%; max-width: 100%; margin-bottom: 1rem; }
 }
 
 </style>
@@ -335,6 +380,9 @@ table tbody tr:hover {
         <?php endforeach; ?>
     </select>
 
+    <label for="admission-filter">Filter by Admission No:</label>
+    <input type="text" id="admission-filter" placeholder="Enter Admission No" value="<?= isset($_GET['admission']) ? htmlspecialchars($_GET['admission']) : '' ?>">
+
     <table border="1">
         <thead>
             <tr>
@@ -345,7 +393,7 @@ table tbody tr:hover {
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="student-table-body">
             <?php while ($student = $result->fetch_assoc()): ?>
                 <tr>
                     <td><?= $student['admission_no']; ?></td>
@@ -412,10 +460,10 @@ table tbody tr:hover {
       </select>
 
       <label>Guardian:</label>
-      <input type="text" id="edit-guardian" required>
+      <input type="text" id="edit-guardian">
 
       <label>Phone:</label>
-      <input type="text" id="edit-phone" required>
+      <input type="text" id="edit-phone">
 
       <button type="submit">Save Changes</button>
     </form>
@@ -428,14 +476,48 @@ table tbody tr:hover {
     <?php include '../includes/footer.php'; ?>
 <script>
 $(document).ready(function () {
-    // Filter by class
-    $("#class-filter").change(function () {
-        let selectedClass = $(this).val();
-        window.location.href = "manage-students.php?class=" + selectedClass;
+    // ===== Live Admission No Filtering =====
+    $("#admission-filter").on("keyup", function () {
+        const classFilter = $("#class-filter").val();
+        const admissionFilter = $(this).val();
+
+        $.get("manage-students.php", {
+            ajax: 1,
+            class: classFilter,
+            admission: admissionFilter
+        }, function (data) {
+            let rows = '';
+
+            if (data.length === 0) {
+                rows = '<tr><td colspan="10">No matching students found.</td></tr>';
+            } else {
+                data.forEach(function (student) {
+                    rows += `
+                        <tr>
+                            <td>${student.admission_no}</td>
+                            <td>${student.name}</td>
+                            <td>${student.class}</td>
+                            <td>${student.term}</td>
+                            <td>
+                                <button class="edit-btn" data-id="${student.admission_no}">Edit</button>
+                                <button class="delete-btn" data-id="${student.admission_no}">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            $("#student-table-body").html(rows);
+        });
     });
 
-    // Open edit modal and populate fields
-    $(".edit-btn").click(function () {
+    // ===== Class filter (optional AJAX) =====
+    $("#class-filter").change(function () {
+        $("#admission-filter").trigger("keyup");
+    });
+
+    // ===== Edit Student =====
+    $(document).on("click", ".edit-btn", function () {
         let admissionNo = $(this).data("id");
 
         $.post("manage-students.php", { admission_no: admissionNo }, function (response) {
@@ -452,24 +534,21 @@ $(document).ready(function () {
                 $("#edit-term").val(student.term || '');
                 $("#edit-guardian").val(student.guardian || '');
                 $("#edit-phone").val(student.phone || '');
-
-                // Optional fields
                 $("#edit-birth-cert").val(student.birth_cert || '');
                 $("#edit-religion").val(student.religion || '');
                 $("#edit-gender").val(student.gender || '');
 
-                // Show modal
                 $("#edit-modal").show();
             }
         });
     });
 
-    // Close modal
+    // ===== Close Edit Modal =====
     $(".close").click(function () {
         $("#edit-modal").hide();
     });
 
-    // Submit edit form
+    // ===== Update Student =====
     $("#edit-form").submit(function (e) {
         e.preventDefault();
 
@@ -482,8 +561,6 @@ $(document).ready(function () {
             term: $("#edit-term").val(),
             guardian: $("#edit-guardian").val(),
             phone: $("#edit-phone").val(),
-
-            // Additional fields
             birth_cert: $("#edit-birth-cert").val(),
             religion: $("#edit-religion").val(),
             gender: $("#edit-gender").val()
@@ -491,12 +568,13 @@ $(document).ready(function () {
 
         $.post("manage-students.php", data, function (response) {
             alert(response);
-            location.reload();
+            $("#edit-modal").hide();
+            $("#admission-filter").trigger("keyup");
         });
     });
 
-    // Delete student
-    $(".delete-btn").click(function () {
+    // ===== Delete Student =====
+    $(document).on("click", ".delete-btn", function () {
         if (!confirm("Are you sure you want to delete this student and all related records?")) return;
 
         let admissionNo = $(this).data("id");
@@ -506,40 +584,46 @@ $(document).ready(function () {
             admission_no: admissionNo
         }, function (response) {
             alert(response);
-            location.reload();
+            $("#admission-filter").trigger("keyup");
         });
     });
-});
 
-document.addEventListener("DOMContentLoaded", function () {
-    /* ===== Real-time clock ===== */
+    // ===== Real-time Clock =====
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) { 
+        if (clockElement) {
             const now = new Date();
             const timeString = now.toLocaleTimeString();
             clockElement.textContent = timeString;
         }
     }
-    updateClock(); 
+    updateClock();
     setInterval(updateClock, 1000);
 
-    /* ===== Dropdowns: only one open ===== */
+    // ===== Dropdown Toggle =====
     document.querySelectorAll(".dropdown-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             const parent = btn.parentElement;
-
             document.querySelectorAll(".dropdown").forEach(drop => {
-                if (drop !== parent) {
-                    drop.classList.remove("open");
-                }
+                if (drop !== parent) drop.classList.remove("open");
             });
-
             parent.classList.toggle("open");
         });
     });
 
-    /* ===== Sidebar toggle for mobile ===== */
+    // ===== Keep Dropdown Open Based on Current URL =====
+    const currentUrl = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+        const links = drop.querySelectorAll("a");
+        links.forEach(link => {
+            const linkUrl = link.getAttribute("href");
+            if (linkUrl && linkUrl.includes(currentUrl)) {
+                drop.classList.add("open");
+            }
+        });
+    });
+
+    // ===== Sidebar Toggle =====
     const sidebar = document.getElementById('sidebar');
     const toggleBtn = document.querySelector('.toggle-btn');
     const overlay = document.createElement('div');
@@ -551,20 +635,17 @@ document.addEventListener("DOMContentLoaded", function () {
         overlay.classList.toggle('show');
     });
 
-    /* ===== Close sidebar on outside click ===== */
     overlay.addEventListener('click', () => {
         sidebar.classList.remove('show');
         overlay.classList.remove('show');
     });
 
-    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    // ===== Auto Logout After Inactivity =====
     let logoutTimer;
-
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
-            // silent logout
-            window.location.href = 'logout.php';  // Change this to your actual logout URL
+            window.location.href = 'logout.php';
         }, 300000); // 5 minutes
     }
 
@@ -575,6 +656,7 @@ document.addEventListener("DOMContentLoaded", function () {
     resetLogoutTimer();
 });
 </script>
+
 
 
 </body>

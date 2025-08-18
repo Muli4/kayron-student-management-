@@ -1,6 +1,6 @@
 <?php
 session_start();
-header('Content-Type: application/json');  // JSON header
+header('Content-Type: application/json');
 
 if (!isset($_SESSION['username'])) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized access. Please login.']);
@@ -42,7 +42,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['success' => false, 'message' => 'No terms available.']);
         exit();
     }
-
     $terms_arr = $terms_res->fetch_all(MYSQLI_ASSOC);
     $current_term = end($terms_arr);
     $current_term_number = $current_term['term_number'];
@@ -50,9 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $randomDigits = str_pad(mt_rand(0, 9999), 4, '0', STR_PAD_LEFT);
     $receipt_no = "LF-T{$current_term_number}-{$randomDigits}";
 
-    reset($terms_arr);
-
-    // Helper function
+    // Helper to insert new lunch week
     function insertWeek($conn, $admission_no, $term_id, $week_num, $payment_type, $daily_fee) {
         $total_weekly = $daily_fee * 5;
         $stmt = $conn->prepare("INSERT INTO lunch_fees (admission_no, term_id, total_paid, balance, week_number, total_amount, payment_type, carry_forward) VALUES (?, ?, 0, ?, ?, ?, ?, 0)");
@@ -61,13 +58,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
     }
 
+    // === Find previous term if any
+    $prev_term = null;
     foreach ($terms_arr as $term) {
+        if ($term['id'] < $current_term['id']) {
+            $prev_term = $term;
+        }
+    }
+
+    if (!$prev_term) {
+        // No previous term at all → start from current term
+        $terms_to_process = [$current_term];
+    } else {
+        // Check if student had lunch fees in previous term
+        $stmt = $conn->prepare("SELECT 1 FROM lunch_fees WHERE admission_no = ? AND term_id = ? LIMIT 1");
+        $stmt->bind_param("si", $admission_no, $prev_term['id']);
+        $stmt->execute();
+        $has_prev_lunch = $stmt->get_result()->num_rows > 0;
+        $stmt->close();
+
+        if (!$has_prev_lunch) {
+            // Previous term exists but no lunch fees → start from current term
+            $terms_to_process = [$current_term];
+        } else {
+            // Continue paying from previous term up to current term
+            $start_collecting = false;
+            $terms_to_process = [];
+            foreach ($terms_arr as $t) {
+                if ($t['id'] == $prev_term['id']) $start_collecting = true;
+                if ($start_collecting) $terms_to_process[] = $t;
+            }
+        }
+    }
+
+    // === Payment distribution
+    foreach ($terms_to_process as $term) {
         if ($amount <= 0) break;
 
         $termId = $term['id'];
         $daysInTerm = (strtotime($term['end_date']) - strtotime($term['start_date'])) / 86400 + 1;
         $total_weeks = ceil($daysInTerm / 5);
 
+        // Get last week for this term
         $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? ORDER BY week_number DESC LIMIT 1");
         $stmt->bind_param("si", $admission_no, $termId);
         $stmt->execute();
@@ -77,8 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $startWeek = $lastWeek ? ($lastWeek['balance'] == 0 ? $lastWeek['week_number'] + 1 : $lastWeek['week_number']) : 1;
 
         for ($wk = $startWeek; $wk <= $total_weeks && $amount > 0; $wk++) {
-            if ($amount <= 0) break;
-
+            // Ensure week exists
             $stmt = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no = ? AND term_id = ? AND week_number = ?");
             $stmt->bind_param("sii", $admission_no, $termId, $wk);
             $stmt->execute();
@@ -97,9 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($valid_days as $dayName) {
                 if ($amount <= 0) break;
 
+                // Attendance check — assume present if no record
                 $stmt = $conn->prepare("
                     SELECT d.id, d.is_public_holiday,
-                           a.status IS NULL OR a.status = 'Present' AS is_present
+                           (a.status IS NULL OR a.status = 'Present') AS is_present
                     FROM days d
                     LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
                     LEFT JOIN weeks w ON w.id = d.week_id
@@ -133,6 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Carry forward leftover
         if ($amount > 0 && $wk > $total_weeks) {
             $lastWeekNum = min($total_weeks, $startWeek);
             $stmt = $conn->prepare("UPDATE lunch_fees SET carry_forward = carry_forward + ? WHERE admission_no = ? AND term_id = ? AND week_number = ?");
@@ -143,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Store transaction
     $stmt = $conn->prepare("INSERT INTO lunch_fee_transactions (name, class, admission_no, receipt_number, amount_paid, payment_type) VALUES (?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("ssssds", $name, $class, $admission_no, $receipt_no, $original_amt, $payment_type);
     $stmt->execute();

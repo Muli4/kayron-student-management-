@@ -331,32 +331,56 @@ $days = $daysRes->fetch_all(MYSQLI_ASSOC);
 
 <?php include '../includes/footer.php'; ?>
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+  if (window.history.replaceState) {
+    window.history.replaceState(null, null, window.location.href);
+  }
+
+  function showEditPopup() {
+    document.getElementById('termEditPopup').style.display = 'block';
+  }
+
+  function closeEditPopup() {
+    document.getElementById('termEditPopup').style.display = 'none';
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
     /* ===== Real-time clock ===== */
     function updateClock() {
-        const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) { // removed window.innerWidth check to show clock on all devices
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            clockElement.textContent = timeString;
-        }
+      const clockElement = document.getElementById('realTimeClock');
+      if (clockElement) {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        clockElement.textContent = timeString;
+      }
     }
-    updateClock(); 
+    updateClock();
     setInterval(updateClock, 1000);
 
     /* ===== Dropdowns: only one open ===== */
     document.querySelectorAll(".dropdown-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const parent = btn.parentElement;
+      btn.addEventListener("click", () => {
+        const parent = btn.parentElement;
 
-            document.querySelectorAll(".dropdown").forEach(drop => {
-                if (drop !== parent) {
-                    drop.classList.remove("open");
-                }
-            });
-
-            parent.classList.toggle("open");
+        document.querySelectorAll(".dropdown").forEach(drop => {
+          if (drop !== parent) {
+            drop.classList.remove("open");
+          }
         });
+
+        parent.classList.toggle("open");
+      });
+    });
+
+    /* ===== Keep dropdown open based on current page ===== */
+    const currentPage = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+      const links = drop.querySelectorAll("a");
+      links.forEach(link => {
+        const href = link.getAttribute("href");
+        if (href && href.includes(currentPage)) {
+          drop.classList.add("open");
+        }
+      });
     });
 
     /* ===== Sidebar toggle for mobile ===== */
@@ -367,35 +391,31 @@ document.addEventListener("DOMContentLoaded", function () {
     document.body.appendChild(overlay);
 
     toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('show');
-        overlay.classList.toggle('show');
+      sidebar.classList.toggle('show');
+      overlay.classList.toggle('show');
     });
 
     /* ===== Close sidebar on outside click ===== */
     overlay.addEventListener('click', () => {
-        sidebar.classList.remove('show');
-        overlay.classList.remove('show');
+      sidebar.classList.remove('show');
+      overlay.classList.remove('show');
     });
 
-    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    /* ===== Auto logout after 5 minutes inactivity ===== */
     let logoutTimer;
-
     function resetLogoutTimer() {
-        clearTimeout(logoutTimer);
-        logoutTimer = setTimeout(() => {
-            // Silent logout - redirect to logout page
-            window.location.href = 'logout.php'; // Change to your logout URL
-        }, 300000); // 5 minutes
+      clearTimeout(logoutTimer);
+      logoutTimer = setTimeout(() => {
+        window.location.href = 'logout.php';
+      }, 300000); // 5 minutes
     }
 
-    // Reset timer on user activity
     ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-        document.addEventListener(evt, resetLogoutTimer);
+      document.addEventListener(evt, resetLogoutTimer);
     });
 
-    // Start the timer when page loads
     resetLogoutTimer();
-});
+  });
 </script>
 </body>
 </html>

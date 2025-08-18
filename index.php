@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Kayron Junior School</title>
+    <title>:: Kayron |Login</title>
     <link rel="website icon" type="png" href="./images/school-logo.jpg">
     
     <!-- Font Awesome for Icons -->

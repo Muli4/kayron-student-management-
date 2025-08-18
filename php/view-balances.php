@@ -6,6 +6,10 @@ if (!isset($_SESSION['username'])) {
 }
 include 'db.php';
 
+$limit = 30; // number of students per page
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+$offset = ($page - 1) * $limit;
+
 // Add "graduate" to the available classes
 $predefined_classes = [
     'babyclass','intermediate','PP1','PP2','grade1','grade2',
@@ -15,6 +19,7 @@ $predefined_classes = [
 // Filters
 $balance_filter = isset($_GET['balance_filter']) && $_GET['balance_filter'] !== '' ? (float)$_GET['balance_filter'] : 0;
 $class_filter = isset($_GET['class_filter']) ? $_GET['class_filter'] : '';
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // Get current/latest term
 $term_row = $conn->query("SELECT id, term_number, start_date FROM terms ORDER BY term_number DESC LIMIT 1")->fetch_assoc();
@@ -36,15 +41,39 @@ $day_map = [
 
 $today = date('Y-m-d');
 
+// Totals
+$totals = [
+    'school_fees' => 0,
+    'lunch' => 0,
+    'book_purchases' => 0,
+    'uniform_purchases' => 0,
+    'total_balance' => 0
+];
+
 // --- Get students
 if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
     if ($class_filter === 'graduate') {
         $query = "SELECT admission_no, name, 'Graduate' AS class, graduation_date FROM graduated_students";
+        if ($search_query !== '') {
+            $query .= " WHERE admission_no LIKE ? OR name LIKE ?";
+        }
         $stmt_students = $conn->prepare($query);
+        if ($search_query !== '') {
+            $like = "%$search_query%";
+            $stmt_students->bind_param("ss", $like, $like);
+        }
     } else {
         $query = "SELECT admission_no, name, class, NULL AS graduation_date FROM student_records WHERE class = ?";
+        if ($search_query !== '') {
+            $query .= " AND (admission_no LIKE ? OR name LIKE ?)";
+        }
         $stmt_students = $conn->prepare($query);
-        $stmt_students->bind_param("s", $class_filter);
+        if ($search_query !== '') {
+            $like = "%$search_query%";
+            $stmt_students->bind_param("sss", $class_filter, $like, $like);
+        } else {
+            $stmt_students->bind_param("s", $class_filter);
+        }
     }
 } else {
     $query = "
@@ -52,8 +81,16 @@ if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
         UNION ALL
         SELECT admission_no, name, 'Graduate' AS class, graduation_date FROM graduated_students
     ";
-    $stmt_students = $conn->prepare($query);
+    if ($search_query !== '') {
+        $query = "SELECT * FROM ($query) AS students WHERE admission_no LIKE ? OR name LIKE ?";
+        $stmt_students = $conn->prepare($query);
+        $like = "%$search_query%";
+        $stmt_students->bind_param("ss", $like, $like);
+    } else {
+        $stmt_students = $conn->prepare($query);
+    }
 }
+
 $stmt_students->execute();
 $result_students = $stmt_students->get_result();
 
@@ -145,63 +182,170 @@ while ($student = $result_students->fetch_assoc()) {
                     $day_paid = $lunch_row[$lower_day] ?? 0;
                 }
 
-                if ($day_paid <= 0) {
-                    $current_term_balance += $per_day_fee;
+                $balance_for_day = $per_day_fee - $day_paid;
+                if ($balance_for_day > 0) {
+                    $current_term_balance += $balance_for_day;
                 }
             }
             $days_stmt->close();
         }
         $weeks_res->close();
+
+        // ======== SUBTRACT CARRY FORWARD ========
+        $carry_stmt = $conn->prepare("
+            SELECT IFNULL(SUM(carry_forward),0) AS carry
+            FROM lunch_fees
+            WHERE admission_no = ? AND term_id < ?
+        ");
+        $carry_stmt->bind_param("si", $admission_no, $current_term_id);
+        $carry_stmt->execute();
+        $carry_forward = 0;
+        $carry_stmt->bind_result($carry_forward);
+        $carry_stmt->fetch();
+        $carry_stmt->close();
+
+        $current_term_balance = max(0, $current_term_balance - $carry_forward);
     }
 
     // ======== PREVIOUS TERMS LUNCH BALANCE ========
-    $prev_terms_res = $conn->prepare("
-        SELECT SUM(balance) as prev_balance
-        FROM lunch_fees lf
-        JOIN terms t ON lf.term_id = t.id
-        WHERE lf.admission_no = ? AND t.term_number < ?
-    ");
-    $prev_terms_res->bind_param("si", $admission_no, $current_term_number);
-    $prev_terms_res->execute();
-    $prev_balance = (float)($prev_terms_res->get_result()->fetch_assoc()['prev_balance'] ?? 0);
-    $prev_terms_res->close();
+    $prev_balance = 0;
+
+    $terms_stmt = $conn->prepare("SELECT id FROM terms WHERE term_number < ?");
+    $terms_stmt->bind_param("i", $current_term_number);
+    $terms_stmt->execute();
+    $terms_res = $terms_stmt->get_result();
+
+    while ($term_row = $terms_res->fetch_assoc()) {
+        $prev_term_id = (int)$term_row['id'];
+
+        $check_stmt = $conn->prepare("SELECT COUNT(*) FROM lunch_fees WHERE admission_no = ? AND term_id = ?");
+        $check_stmt->bind_param("si", $admission_no, $prev_term_id);
+        $check_stmt->execute();
+        $check_stmt->bind_result($has_lunch);
+        $check_stmt->fetch();
+        $check_stmt->close();
+
+        if ($has_lunch > 0) {
+            $pay_stmt = $conn->prepare("
+                SELECT week_number, monday, tuesday, wednesday, thursday, friday
+                FROM lunch_fees
+                WHERE admission_no = ? AND term_id = ?
+                ORDER BY week_number ASC
+            ");
+            $pay_stmt->bind_param("si", $admission_no, $prev_term_id);
+            $pay_stmt->execute();
+            $pay_result = $pay_stmt->get_result();
+
+            $last_paid_week = 0;
+            $last_paid_day_index = -1;
+            $last_paid_amount = 0;
+            $day_list = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+
+            while ($row = $pay_result->fetch_assoc()) {
+                foreach ($day_list as $i => $day) {
+                    $amt = floatval($row[$day]);
+                    if ($amt > 0) {
+                        $last_paid_week = (int)$row['week_number'];
+                        $last_paid_day_index = $i;
+                        $last_paid_amount = $amt;
+                    }
+                }
+            }
+            $pay_stmt->close();
+
+            $day_stmt = $conn->prepare("
+                SELECT d.day_name, w.week_number, d.is_public_holiday, a.status
+                FROM days d
+                JOIN weeks w ON d.week_id = w.id
+                LEFT JOIN attendance a ON a.day_id = d.id AND a.admission_no = ?
+                WHERE w.term_id = ?
+                ORDER BY w.week_number ASC, FIELD(d.day_name, 'Monday','Tuesday','Wednesday','Thursday','Friday')
+            ");
+            $day_stmt->bind_param("si", $admission_no, $prev_term_id);
+            $day_stmt->execute();
+            $days_result = $day_stmt->get_result();
+
+            $day_index_map = ['Monday' => 0, 'Tuesday' => 1, 'Wednesday' => 2, 'Thursday' => 3, 'Friday' => 4];
+            $partial_day_checked = false;
+
+            while ($row = $days_result->fetch_assoc()) {
+                $week = (int)$row['week_number'];
+                $day_name = $row['day_name'];
+                $day_index = $day_index_map[$day_name] ?? -1;
+                $is_holiday = (int)$row['is_public_holiday'];
+                $status = $row['status'] ?? 'Present';
+
+                if ($day_index === -1 || $is_holiday === 1 || $status === 'Absent') continue;
+
+                if (!$partial_day_checked && $week === $last_paid_week && $day_index === $last_paid_day_index) {
+                    if ($last_paid_amount < $per_day_fee) {
+                        $prev_balance += $per_day_fee - $last_paid_amount;
+                    }
+                    $partial_day_checked = true;
+                    continue;
+                }
+
+                if ($week < $last_paid_week || ($week === $last_paid_week && $day_index <= $last_paid_day_index)) {
+                    continue;
+                }
+
+                $prev_balance += $per_day_fee;
+            }
+
+            $day_stmt->close();
+        }
+    }
+    $terms_stmt->close();
 
     // ======== TOTAL LUNCH BALANCE ========
     $lunch_balance = $prev_balance + $current_term_balance;
 
     // ======== TOTAL BALANCE ========
-    $total_balance = max(0, $school_fees_balance) + $book_balance + $uniform_balance + $lunch_balance;
+    $school_fees_display = $school_fees_balance < 0 ? 0 : $school_fees_balance;
+    $total_balance = $school_fees_display + $book_balance + $uniform_balance + $lunch_balance;
 
     if ($total_balance >= $balance_filter) {
         $students[] = [
             'admission_no' => $admission_no,
             'name' => $student['name'],
-            'school_fees' => $school_fees_balance <= 0 ? "Paid" : number_format($school_fees_balance, 2),
-            'lunch' => $lunch_balance <= 0 ? "Paid" : number_format($lunch_balance, 2),
-            'book_purchases' => number_format($book_balance, 2),
-            'uniform_purchases' => number_format($uniform_balance, 2),
-            'total_balance' => $total_balance <= 0 ? "Paid" : number_format($total_balance, 2),
+            'school_fees' => $school_fees_balance < 0 ? 'Paid' : $school_fees_balance,
+            'lunch' => $lunch_balance,
+            'book_purchases' => $book_balance,
+            'uniform_purchases' => $uniform_balance,
+            'total_balance' => $total_balance,
             'class' => $student['class']
         ];
+
+        // Totals: ignore negative school fee balances
+        $totals['school_fees'] += $school_fees_display;
+        $totals['lunch'] += $lunch_balance;
+        $totals['book_purchases'] += $book_balance;
+        $totals['uniform_purchases'] += $uniform_balance;
+        $totals['total_balance'] += $total_balance;
     }
+
 }
 
 $stmt_students->close();
 $conn->close();
-?>
 
+// --- PAGINATION ---
+$total_students = count($students);
+$total_pages = ceil($total_students / $limit);
+$students = array_slice($students, $offset, $limit); // apply pagination
+?>
 
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Student Balances</title>
+    <title>:: Kayron | Student Balances</title>
     <link rel="stylesheet" href="../style/style-sheet.css">
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
     <link rel="icon" type="image/png" href="../images/school-logo.jpg">
-<style>
-    /* Container for the whole view */
+    <style>
+/* Container for the whole view */
 .view-container {
     background: #fff;
     padding: 2rem;
@@ -216,17 +360,16 @@ $conn->close();
     font-weight: 700;
     font-size: 1.8rem;
     margin-bottom: 2rem;
-    text-align: center; /* center content inside h2 */
-    display: block;     /* block element to take full width */
+    text-align: center;
+    display: block;
 }
 
 .view-container h2 i {
     color: #1cc88a;
     font-size: 2rem;
-    vertical-align: middle; /* align icon with text vertically */
-    margin-right: 0.5rem;   /* space between icon and text */
+    vertical-align: middle;
+    margin-right: 0.5rem;
 }
-
 
 /* Filter form styles */
 #filterForm {
@@ -245,6 +388,7 @@ $conn->close();
 }
 
 #filterForm input[type="number"],
+#filterForm input[type="text"],
 #filterForm select {
     padding: 0.4rem 0.8rem;
     border: 1.8px solid #4e73df;
@@ -256,6 +400,7 @@ $conn->close();
 }
 
 #filterForm input[type="number"]:focus,
+#filterForm input[type="text"]:focus,
 #filterForm select:focus {
     border-color: #1cc88a;
 }
@@ -283,18 +428,43 @@ $conn->close();
     font-size: 1.5rem;
 }
 
-/* Table styling */
+/* Pay button styles */
+.pay-btn {
+    background-color: #1cc88a;
+    color: #fff;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.3s;
+    font-size: 0.9rem;
+}
+
+.pay-btn:hover {
+    background-color: #17a673;
+    transform: scale(1.05);
+}
+
+.pay-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Table styling - only bottom borders */
 #balancesTable {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.95rem;
+    font-size: 14px;
+    border: none; /* remove table border */
 }
 
 #balancesTable th,
 #balancesTable td {
-    border: 1px solid #ddd;
-    padding: 0.6rem 0.8rem;
+    border: none; /* remove all borders */
+    border-bottom: 1px solid #ddd; /* only bottom border */
+    padding: 3px 5px;
     text-align: center;
+    transition: transform 0.2s;
 }
 
 #balancesTable thead {
@@ -308,81 +478,51 @@ $conn->close();
 
 #balancesTable tbody tr:hover {
     background-color: #e6f7f1;
-    cursor: default;
+    transform: scale(1.01);
 }
+
+/* Responsive table wrapper */
 .table-responsive {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch; /* for smooth scrolling on iOS */
-  border: 1px solid #ccc; /* optional: border to show the container */
-  box-sizing: border-box;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 }
-
-
-/* Responsive for smaller screens */
-/* General page styles (your existing styles would be here) */
+.pagination a {
+    margin: 0 4px;
+    padding: 6px 12px;
+    border: 1px solid #4e73df;
+    border-radius: 4px;
+    color: #4e73df;
+    text-decoration: none;
+    transition: background 0.3s;
+}
+.pagination a:hover {
+    background: #4e73df;
+    color: white;
+}
+.pagination a.active {
+    background: #1cc88a;
+    color: white;
+}
 
 /* Responsive tweaks */
 @media (max-width: 768px) {
-  /* Hide sidebar on small screens */
-  #sidebar {
-    display: none !important;
-  }
-
-  /* Make main content full width */
-  main.content {
-    margin-left: 0 !important;
-    width: 100% !important;
-    padding: 10px;
-  }
-
-  /* Table: allow horizontal scroll */
-  #balancesTable {
-    display: block;
-    width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  /* Form controls: stack vertically */
-  form#filterForm {
-    flex-direction: column !important;
-    gap: 15px !important;
-  }
-
-  form#filterForm label,
-  form#filterForm input,
-  form#filterForm select,
-  form#filterForm button {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-
-  /* Center the h2 and icon */
-  h2 {
-    text-align: center;
-  }
-
-  /* Optional: adjust print button size */
-  form#filterForm button {
-    font-size: 1.5rem;
-    padding: 10px;
-  }
-    .table-responsive {
-    width: 100%;
-  }
+    #sidebar { display: none !important; }
+    main.content { margin-left: 0 !important; width: 100% !important; padding: 10px; }
+    #balancesTable { display: block; width: 100%; overflow-x: auto; white-space: nowrap; }
+    form#filterForm { flex-direction: column !important; gap: 15px !important; }
+    form#filterForm label,
+    form#filterForm input,
+    form#filterForm select,
+    form#filterForm button { width: 100% !important; max-width: 100% !important; }
+    h2 { text-align: center; }
+    form#filterForm button { font-size: 1.5rem; padding: 10px; }
 }
 
 @media (max-width: 480px) {
-  /* Smaller font sizes on very small screens */
-  h2 {
-    font-size: 1.4rem;
-  }
-
-  form#filterForm button {
-    font-size: 1.3rem;
-    padding: 8px;
-  }
+    h2 { font-size: 1.4rem; }
+    form#filterForm button { font-size: 1.3rem; padding: 8px; }
 }
 </style>
 
@@ -398,6 +538,10 @@ $conn->close();
             <h2><i class='bx bxs-wallet'></i> Student Balances</h2>
 
             <form method="GET" action="" id="filterForm" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <label for="search">Search:</label>
+                <input type="text" id="search" name="search" placeholder="Admission No or Name"
+                       value="<?= htmlspecialchars($search_query ?? '') ?>" oninput="autoSubmit()">
+
                 <label for="balance_filter">Balance</label>
                 <input type="number" id="balance_filter" name="balance_filter" min="0" step="0.01" 
                        value="<?= htmlspecialchars($balance_filter); ?>" oninput="autoSubmit()">
@@ -421,6 +565,7 @@ $conn->close();
                 <table id="balancesTable" border="1">
                     <thead>
                         <tr>
+                            <th>#</th> <!-- Row number -->
                             <th>Adm</th>
                             <th>Name</th>
                             <th>Class</th>
@@ -429,27 +574,65 @@ $conn->close();
                             <th>Books</th>
                             <th>Uniform</th>
                             <th>Total Balance</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($students)): ?>
-                            <tr><td colspan="8">No records found.</td></tr>
+                            <tr><td colspan="10">No records found.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($students as $student): ?>
+                            <?php 
+                                $rowNumber = $offset + 1; // Start number based on pagination
+                                foreach ($students as $student): 
+                            ?>
                                 <tr>
+                                    <td><?= $rowNumber++; ?></td>
                                     <td><?= htmlspecialchars($student['admission_no']); ?></td>
                                     <td><?= htmlspecialchars($student['name']); ?></td>
                                     <td><?= htmlspecialchars($student['class']); ?></td>
-                                    <td><?= htmlspecialchars($student['school_fees']); ?></td>
-                                    <td><?= htmlspecialchars($student['lunch'] ?? 'Paid'); ?></td>
-                                    <td><?= htmlspecialchars($student['book_purchases']); ?></td>
-                                    <td><?= htmlspecialchars($student['uniform_purchases']); ?></td>
-                                    <td><?= htmlspecialchars($student['total_balance']); ?></td>
+                                    <td><?= $student['school_fees'] === 'Paid' ? 'Paid' : number_format($student['school_fees'], 2); ?></td>
+                                    <td><?= $student['lunch'] <= 0 ? 'Paid' : number_format($student['lunch'], 2); ?></td>
+                                    <td><?= number_format($student['book_purchases'], 2); ?></td>
+                                    <td><?= number_format($student['uniform_purchases'], 2); ?></td>
+                                    <td><?= $student['total_balance'] <= 0 ? 'Paid' : number_format($student['total_balance'], 2); ?></td>
+                                    <td>
+                                        <?php if ($student['total_balance'] > 0): ?>
+                                            <form method="GET" action="others.php" class="pay-form">
+                                                <input type="hidden" name="admission_no" value="<?= htmlspecialchars($student['admission_no']); ?>">
+                                                <input type="hidden" name="student_name" value="<?= htmlspecialchars($student['name']); ?>">
+                                                <button type="submit" class="pay-btn">Pay</button>
+                                            </form>
+                                        <?php else: ?>
+                                            <button type="button" class="pay-btn" disabled>Paid</button>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
+                            <!-- Totals row -->
+                            <tr style="font-weight:bold; background:#f0f0f0;">
+                                <td colspan="4">Totals</td>
+                                <td><?= number_format($totals['school_fees'], 2); ?></td>
+                                <td><?= number_format($totals['lunch'], 2); ?></td>
+                                <td><?= number_format($totals['book_purchases'], 2); ?></td>
+                                <td><?= number_format($totals['uniform_purchases'], 2); ?></td>
+                                <td><?= number_format($totals['total_balance'], 2); ?></td>
+                                <td></td>
+                            </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
+
+                <?php if ($total_pages > 1): ?>
+                    <div class="pagination" style="margin-top: 1rem; text-align:center;">
+                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                            <a href="?page=<?= $i; ?>&class_filter=<?= urlencode($class_filter); ?>&search=<?= urlencode($search_query); ?>&balance_filter=<?= urlencode($balance_filter); ?>"
+                            style="margin: 0 5px; padding: 5px 10px; border: 1px solid #4e73df; border-radius: 5px; text-decoration: none; 
+                                    <?= ($i == $page) ? 'background:#4e73df; color:white;' : 'color:#4e73df;' ?>">
+                                <?= $i; ?>
+                            </a>
+                        <?php endfor; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
         </div>
@@ -463,26 +646,32 @@ document.addEventListener("DOMContentLoaded", function () {
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
         if (clockElement) {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            clockElement.textContent = timeString;
+            clockElement.textContent = new Date().toLocaleTimeString();
         }
     }
     updateClock();
     setInterval(updateClock, 1000);
 
-    // ===== Dropdowns: only one open =====
+    // ===== Dropdowns: only one open on click =====
     document.querySelectorAll(".dropdown-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             const parent = btn.parentElement;
-
             document.querySelectorAll(".dropdown").forEach(drop => {
-                if (drop !== parent) {
-                    drop.classList.remove("open");
-                }
+                if (drop !== parent) drop.classList.remove("open");
             });
-
             parent.classList.toggle("open");
+        });
+    });
+
+    // ===== Keep Dropdown Open Based on Current Page =====
+    const currentUrl = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+        const links = drop.querySelectorAll("a");
+        links.forEach(link => {
+            const linkUrl = link.getAttribute("href");
+            if (linkUrl && linkUrl.includes(currentUrl)) {
+                drop.classList.add("open");
+            }
         });
     });
 
@@ -498,32 +687,28 @@ document.addEventListener("DOMContentLoaded", function () {
         overlay.classList.toggle('show');
     });
 
-    // ===== Close sidebar on outside click =====
     overlay.addEventListener('click', () => {
         sidebar.classList.remove('show');
         overlay.classList.remove('show');
     });
 
-    // ===== Auto logout after 30 seconds inactivity (no alert) =====
+    // ===== Auto logout after 5 minutes inactivity =====
     let logoutTimer;
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
-            window.location.href = 'logout.php'; // Adjust your logout URL here
+            window.location.href = 'logout.php';
         }, 300000); // 5 minutes
     }
-
     ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
         document.addEventListener(evt, resetLogoutTimer);
     });
-
     resetLogoutTimer();
 });
 
-// ===== Auto-submit debounce and print function =====
+// ===== Auto-submit debounce =====
 let typingTimer;
 const debounceDelay = 1500;
-
 function autoSubmit() {
     clearTimeout(typingTimer);
     typingTimer = setTimeout(() => {
@@ -531,17 +716,67 @@ function autoSubmit() {
     }, debounceDelay);
 }
 
+// ===== Print function with heading, full borders, and popup =====
 function printBalances() {
-    const printContent = document.getElementById('balancesTable').outerHTML;
-    const newWin = window.open("", "_blank");
-    newWin.document.write("<html><head><title>Print Balances</title></head><body>");
-    newWin.document.write(printContent);
-    newWin.document.write("</body></html>");
+    // Clone table
+    const table = document.getElementById('balancesTable').cloneNode(true);
+
+    // Remove last column (actions/pay) from header
+    const ths = table.querySelectorAll('thead th');
+    if (ths.length > 8) ths[ths.length - 1].remove();
+
+    // Remove last column from each row
+    table.querySelectorAll('tbody tr').forEach(row => {
+        if (row.children.length > 8) row.removeChild(row.lastElementChild);
+    });
+
+    const heading = `
+        <h2 style="text-align:center; color:#1cc88a; font-size:24px; margin-bottom:20px;">
+            <i class="bx bxs-wallet"></i> Student Balances
+        </h2>`;
+
+    // Calculate centered popup position
+    const width = 1000, height = 700;
+    const left = (screen.width - width) / 2;
+    const top = (screen.height - height) / 2;
+
+    const newWin = window.open(
+        "",
+        "PrintWindow",
+        `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`
+    );
+
+    newWin.document.write(`
+        <html>
+        <head>
+            <title>Student Balances</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+                th, td { border: 1px solid #333; padding: 0.6rem 0.8rem; text-align: center; }
+                thead { background-color: #4e73df; color: black; }
+                tbody tr:nth-child(even) { background-color: #f9f9f9; }
+                tbody tr:hover { background-color: #e6f7f1; }
+            </style>
+        </head>
+        <body>
+            ${heading}
+            ${table.outerHTML}
+        </body>
+        </html>
+    `);
+
     newWin.document.close();
+    newWin.focus();
     newWin.print();
+
+    newWin.onafterprint = function () {
+        window.location.href = 'view-balances.php';
+    };
 }
 </script>
 
 </body>
 </html>
+
 
