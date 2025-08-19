@@ -40,46 +40,86 @@ h2,h3 { margin:0; }
 table { width:100%; border-collapse: collapse; margin-top:10px;}
 th,td { border:1px solid #000; padding:5px; text-align:left; }
 .total { font-weight:bold; }
+.logo {
+    max-width: 120px;
+    margin-bottom: 10px;
+}
 </style>
 </head>
 <body>
 <div class="header">
-<h2>Kayron Junior School</h2>
-<p>Tel: 0703373151 / 0740047243</p>
-<h3>Official Receipt</h3>
-<p>Date: <?= date('d/m/Y') ?> | Receipt No: <?= htmlspecialchars($receipt_no) ?></p>
+    <img src="../images/school-logo.jpg" alt="School Logo" class="logo" />
+    <h2>Kayron Junior School</h2>
+    <p>Tel: 0703373151 / 0740047243</p>
+    <h3>Official Receipt</h3>
+    <p>Date: <?= date('d/m/Y') ?> | Receipt No: <?= htmlspecialchars($receipt_no) ?></p>
 </div>
 
 <p><strong>Student:</strong> <?= htmlspecialchars($name) ?> | <strong>Admission No:</strong> <?= htmlspecialchars($admission_no) ?> | <strong>Class:</strong> <?= htmlspecialchars($class) ?></p>
 <p><strong>Payment Method:</strong> <?= htmlspecialchars($payment_type) ?></p>
 
 <table>
-<tr><th>Fee Type</th><th>Amount</th></tr>
+<tr><th>Fee Type</th><th>Amount</th><th>Balance</th></tr>
 
-<?php foreach($school_fees as $sf){ $total_paid += $sf['amount_paid']; ?>
-<tr><td>School Fee</td><td><?= formatAmount($sf['amount_paid']) ?></td></tr>
-<?php } ?>
+<?php foreach($school_fees as $sf): 
+    $total_paid += $sf['amount_paid'];
+    $balance = isset($sf['balance']) ? $sf['balance'] : 0; // adjust if your table has balance field
+?>
+<tr>
+    <td>School Fee</td>
+    <td><?= formatAmount($sf['amount_paid']) ?></td>
+    <td><?= formatAmount($balance) ?></td>
+</tr>
+<?php endforeach; ?>
 
-<?php foreach($lunch_fees as $lf){ $total_paid += $lf['amount_paid']; ?>
-<tr><td>Lunch Fee</td><td><?= formatAmount($lf['amount_paid']) ?></td></tr>
-<?php } ?>
+<?php foreach($lunch_fees as $lf): 
+    $total_paid += $lf['amount_paid'];
+    $balance = isset($lf['balance']) ? $lf['balance'] : 0;
+?>
+<tr>
+    <td>Lunch Fee</td>
+    <td><?= formatAmount($lf['amount_paid']) ?></td>
+    <td><?= formatAmount($balance) ?></td>
+</tr>
+<?php endforeach; ?>
 
-<?php foreach($others as $o){ $total_paid += $o['amount_paid']; ?>
-<tr><td><?= htmlspecialchars($o['fee_type']) ?></td><td><?= formatAmount($o['amount_paid']) ?></td></tr>
-<?php } ?>
+<?php foreach($others as $o): 
+    $total_paid += $o['amount_paid'];
+    $balance = isset($o['balance']) ? $o['balance'] : 0;
+?>
+<tr>
+    <td><?= htmlspecialchars($o['fee_type']) ?></td>
+    <td><?= formatAmount($o['amount_paid']) ?></td>
+    <td><?= formatAmount($balance) ?></td>
+</tr>
+<?php endforeach; ?>
 
-<?php foreach($uniforms as $u){ $total_paid += $u['amount_paid']; ?>
-<tr><td>Uniform (<?= htmlspecialchars($u['uniform_type'].'-'.$u['size']) ?>)</td><td><?= formatAmount($u['amount_paid']) ?></td></tr>
-<?php } ?>
+<?php foreach($uniforms as $u): 
+    $total_paid += $u['amount_paid'];
+    $balance = isset($u['balance']) ? $u['balance'] : 0;
+?>
+<tr>
+    <td>Uniform (<?= htmlspecialchars($u['uniform_type'].'-'.$u['size']) ?>)</td>
+    <td><?= formatAmount($u['amount_paid']) ?></td>
+    <td><?= formatAmount($balance) ?></td>
+</tr>
+<?php endforeach; ?>
 
-<?php foreach($books as $b){ $total_paid += $b['amount_paid']; ?>
-<tr><td>Book (<?= htmlspecialchars($b['book_name']) ?>)</td><td><?= formatAmount($b['amount_paid']) ?></td></tr>
-<?php } ?>
+<?php foreach($books as $b): 
+    $total_paid += $b['amount_paid'];
+    $balance = isset($b['balance']) ? $b['balance'] : 0;
+?>
+<tr>
+    <td>Book (<?= htmlspecialchars($b['book_name']) ?>)</td>
+    <td><?= formatAmount($b['amount_paid']) ?></td>
+    <td><?= formatAmount($balance) ?></td>
+</tr>
+<?php endforeach; ?>
 
-<tr class="total"><td>Total Paid</td><td><?= formatAmount($total_paid) ?></td></tr>
+<tr class="total"><td>Total Paid</td><td><?= formatAmount($total_paid) ?></td><td></td></tr>
 </table>
 
-<p>Approved by: Emmaculate</p>
+
 <p>Thank you for your payment!</p>
 <script>window.print();</script>
 </body>

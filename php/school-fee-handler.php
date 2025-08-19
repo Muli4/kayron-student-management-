@@ -5,7 +5,7 @@ session_start();
 // ACCESS CONTROL
 // ============================
 if (!isset($_SESSION['username'])) {
-    echo "<script>alert('Unauthorized access. Please login.'); window.location.href='login.php';</script>";
+    echo "<script>alert('Unauthorized access. Please login.'); window.location.href='../index.php';</script>";
     exit();
 }
 
@@ -549,7 +549,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // COMMIT ALL
         // ----------------------------------------------------
         $conn->commit();
-        echo "<script>alert('✅ Payment Successful! Receipt: {$receipt_number}'); window.location.href='school-fee-handler.php';</script>";
+        echo "<script>window.open('receipt.php?receipt_no={$receipt_number}', '_blank');
+        window.location.href = 'school-fee-handler.php';
+        </script>";
         exit();
 
     } catch (Exception $e) {
