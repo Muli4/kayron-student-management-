@@ -597,7 +597,7 @@ $students = array_slice($students, $offset, $limit); // apply pagination
                                     <td><?= $student['total_balance'] <= 0 ? 'Paid' : number_format($student['total_balance'], 2); ?></td>
                                     <td>
                                         <?php if ($student['total_balance'] > 0): ?>
-                                            <form method="GET" action="others.php" class="pay-form">
+                                            <form method="GET" action="school-fee-handler.php" class="pay-form">
                                                 <input type="hidden" name="admission_no" value="<?= htmlspecialchars($student['admission_no']); ?>">
                                                 <input type="hidden" name="student_name" value="<?= htmlspecialchars($student['name']); ?>">
                                                 <button type="submit" class="pay-btn">Pay</button>

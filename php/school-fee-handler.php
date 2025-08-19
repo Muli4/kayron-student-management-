@@ -6,6 +6,8 @@ if (!isset($_SESSION['username'])) {
 }
 include 'db.php';
 
+$prefill_adm = $_GET['admission_no'] ?? '';
+$prefill_name = $_GET['student_name'] ?? '';
 
 $DAILY_FEE   = 70;
 $VALID_DAYS  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -576,99 +578,507 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <head>
   <meta charset="UTF-8">
   <title>Make Payment</title>
-  <link rel="stylesheet" href="../style/style.css">
-  <style>
-    body { font-family: Arial, sans-serif; background:#f9f9f9; }
-    .payment-container {
-      width: 600px; margin: 50px auto; background:#fff; padding:20px;
-      border-radius:10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    h2 { text-align:center; margin-bottom:20px; }
-    label { display:block; margin-top:15px; font-weight:bold; }
-    input, select {
-      width:100%; padding:8px; margin-top:5px; border:1px solid #ccc; border-radius:5px;
-    }
-    .btn {
-      margin-top:20px; padding:10px; width:100%; background:#2c7be5;
-      color:#fff; border:none; border-radius:5px; font-size:16px; cursor:pointer;
-    }
-    .btn:hover { background:#1a5dc9; }
-  </style>
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<style>
+/* ===== Payment Container ===== */
+.payment-container {
+    max-width: 700px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fdfdfd;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    font-family: Arial, sans-serif;
+}
+
+/* Form Heading */
+.payment-container h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Form Groups */
+.payment-container .form-group {
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.payment-container label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    display: inline-block;
+    font-size: 14px;
+}
+
+.payment-container input[type="text"],
+.payment-container input[type="number"],
+.payment-container select {
+    padding: 6px 10px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+/* Form Group */
+.form-group {
+    position: relative;
+    margin-bottom: 20px;
+    width: 100%;
+    max-width: 500px; /* optional: limit width */
+}
+
+/* Label styling */
+.form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 6px;
+    font-size: 14px;
+}
+
+/* Input field styling */
+.form-group input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+/* Suggestions dropdown */
+#suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-top: none;
+    background-color: #fff;
+    z-index: 100;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border-radius: 0 0 5px 5px;
+}
+
+/* Individual suggestion items */
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.suggestion-item:hover {
+    background-color: #f0f0f0;
+}
+
+
+/* ===== School Fees ===== */
+.school-fees {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.school-fees label {
+    display: block;
+    margin-bottom: 3px;
+}
+
+.school-fees input {
+    width: 100%;
+}
+
+/* ===== Other Fees arranged like School Fees ===== */
+.others {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.others > div {
+    flex: 1 1 45%; /* two inputs per row, adjust spacing */
+    display: flex;
+    flex-direction: column;
+}
+
+.others label {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.others input {
+    padding: 6px 10px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+
+
+/* ===== Books & Uniforms ===== */
+.books, .uniform {
+    margin-bottom: 20px;
+}
+
+.books h3, .uniform h3 {
+    font-size: 16px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.books div, .uniform div {
+    margin-bottom: 10px;
+}
+
+.books div > div, .uniform div > div {
+    display: flex;
+    gap: 10px;
+}
+
+.books div > div input, .uniform div > div input {
+    flex: 1;
+}
+/* Total amount display */
+div[style="total"] {
+    margin-bottom: 20px;
+    font-weight: bold;
+    font-size: 16px;
+}
+/* ===== Payment Method ===== */
+.payments {
+    margin-bottom: 20px;
+}
+
+.payments label {
+    margin-bottom: 5px;
+}
+
+.payments select {
+    padding: 6px 10px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    width: 100%;
+}
+
+/* ===== Submit Button ===== */
+.btn {
+    display: block;
+    width: 100%;
+    padding: 10px 0;
+    font-size: 15px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.btn:hover {
+    background-color: #0056b3;
+}
+
+</style>
 </head>
 <body>
-<div class="payment-container">
-  <h2>Student Payment</h2>
-  <form method="POST" action="school-fee-handler.php">
+<?php include '../includes/header.php'; ?>
+<div class="dashboard-container">
+    <?php include'../includes/sidebar.php'; ?>
+    <main class="content">
+        <div class="payment-container">
+        <h2>Student Payment</h2>
+        <form method="POST" action="school-fee-handler.php">
 
-    <label>Admission Number:</label>
-    <input type="text" name="admission_no" required>
+                    <div class="form-group">
+                        <label for="student-search">Admission No Or Name:</label>
+                        <input type="text" id="student-search" placeholder="Search student..." autocomplete="off" 
+                            value="<?= htmlspecialchars($prefill_name); ?>">
+                        <input type="hidden" id="admission_no" name="admission_no" value="<?= htmlspecialchars($prefill_adm); ?>">
+                        <input type="hidden" id="student_name" name="student_name" value="<?= htmlspecialchars($prefill_name); ?>">
+                        <div id="suggestions"></div>
+                    </div>
 
-    <label>School Fee Amount:</label>
-    <input type="number" name="school_amount" placeholder="Enter school fee amount" min="0" step="0.01">
 
-    <label>Lunch Fee Amount:</label>
-    <input type="number" name="lunch_amount" placeholder="Enter lunch fee amount" min="0" step="0.01">
+                    <div class="school-fees">
+                        <div style="flex:1">
+                            <label>School Fee Amount:</label>
+                            <input type="number" name="school_amount" placeholder="Enter school fee amount" min="0" step="0.01">
+                        </div>
+                        <div style="flex:1">
+                            <label>Lunch Fee Amount:</label>
+                            <input type="number" name="lunch_amount" placeholder="Enter lunch fee amount" min="0" step="0.01">
+                        </div>
+                    </div>
 
-    <h3>Other Fees</h3>
-    <label>Admission Fee :</label>
-    <input type="number" name="others[Admission]" placeholder="Enter amount" min="0" step="0.01">
+                    <div class="others">
+                        <div>
+                            <label>Admission Fee:</label>
+                            <input type="number" name="others[Admission]" placeholder="Enter amount" min="0" step="0.01">
+                        </div>
+                        <div>
+                            <label>Activity Fee:</label>
+                            <input type="number" name="others[Activity]" placeholder="Enter amount" min="0" step="0.01">
+                        </div>
+                        <div>
+                            <label>Exam Fee:</label>
+                            <input type="number" name="others[Exam]" placeholder="Enter amount" min="0" step="0.01">
+                        </div>
+                        <div>
+                            <label>Interview Fee:</label>
+                            <input type="number" name="others[Interview]" placeholder="Enter amount" min="0" step="0.01">
+                        </div>
+                        <div>
+                            <label>Prize Giving Fee:</label>
+                            <input type="number" name="others[Prize Giving]" placeholder="Enter amount" min="0" step="0.01">
+                        </div>
+                        <div>
+                            <label>Graduation Fee:</label>
+                            <input type="number" name="others[Graduation]" placeholder="Enter amount" min="0" step="0.01">
+                        </div>
+                    </div>
 
-    <label>Activity Fee :</label>
-    <input type="number" name="others[Activity]" placeholder="Enter amount" min="0" step="0.01">
 
-    <label>Exam Fee :</label>
-    <input type="number" name="others[Exam]" placeholder="Enter amount" min="0" step="0.01">
 
-    <label>Interview Fee :</label>
-    <input type="number" name="others[Interview]" placeholder="Enter amount" min="0" step="0.01">
+                <div class="books">
+                    <h3>Book Purchases</h3>
+                    <?php
+                    $books_res = $conn->query("SELECT * FROM book_prices ORDER BY category ASC");
+                    while ($book = $books_res->fetch_assoc()): ?>
+                    <div style="margin-bottom:15px;">
+                        <label><?= htmlspecialchars($book['book_name']) ?> (KES <?= number_format($book['price'], 2) ?> each)</label>
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                            <input type="number" name="books[<?= $book['book_id'] ?>][quantity]" 
+                                placeholder="Qty" min="0" value="1" style="flex:1;">
+                            <input type="number" name="books[<?= $book['book_id'] ?>][amount]" 
+                                placeholder="Amount Paid" min="0" step="0.01"  style="flex:1;">
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
 
-    <label>Prize Giving Fee :</label>
-    <input type="number" name="others[Prize Giving]" placeholder="Enter amount" min="0" step="0.01">
+                <div class="uniform">
+                    <h3>Uniform Purchases</h3>
+                    <?php
+                    $uniforms_res = $conn->query("SELECT * FROM uniform_prices ORDER BY id ASC");
+                    while ($uniform = $uniforms_res->fetch_assoc()): ?>
+                    <div style="margin-bottom:15px;">
+                        <label><?= htmlspecialchars($uniform['uniform_type']) ?> - <?= htmlspecialchars($uniform['size']) ?> (KES <?= number_format($uniform['price'], 2) ?>)</label>
+                        <div style="display:flex; gap:10px; margin-top:5px;">
+                        <input type="number" name="uniforms[<?= $uniform['id'] ?>][quantity]" 
+                                placeholder="Qty" min="0" value="1" style="flex:1;">
+                        <input type="number" name="uniforms[<?= $uniform['id'] ?>][amount]" 
+                                placeholder="Amount Paid" min="0" step="0.01" style="flex:1;">
+                        </div>
+                    </div>
+                    <?php endwhile; ?>
+                </div>
+                <div style="total">
+                    Total Amount Entered: KES <span id="total-amount">0.00</span>
+                </div>
 
-    <label>Graduation Fee :</label>
-    <input type="number" name="others[Graduation]" placeholder="Enter amount" min="0" step="0.01">
+                <div class="payments">
+                    <label>Payment Method:</label>
+                    <select name="payment_type" required>
+                    <option value="Cash">Cash</option>
+                    </select>
+                </div>
 
-    <h3>Book Purchases</h3>
-    <?php
-    $books_res = $conn->query("SELECT * FROM book_prices ORDER BY category ASC");
-    while ($book = $books_res->fetch_assoc()): ?>
-      <div style="margin-bottom:15px;">
-          <label><?= htmlspecialchars($book['book_name']) ?> (KES <?= number_format($book['price'], 2) ?> each)</label>
-          <div style="display:flex; gap:10px; margin-top:5px;">
-            <input type="number" name="books[<?= $book['book_id'] ?>][quantity]" 
-                   placeholder="Qty" min="0" value="1" style="flex:1;">
-            <input type="number" name="books[<?= $book['book_id'] ?>][amount]" 
-                   placeholder="Amount Paid" min="0" step="0.01"  style="flex:1;">
-          </div>
-      </div>
-    <?php endwhile; ?>
-
-    <h3>Uniform Purchases</h3>
-    <?php
-    $uniforms_res = $conn->query("SELECT * FROM uniform_prices ORDER BY id ASC");
-    while ($uniform = $uniforms_res->fetch_assoc()): ?>
-      <div style="margin-bottom:15px;">
-        <label><?= htmlspecialchars($uniform['uniform_type']) ?> - <?= htmlspecialchars($uniform['size']) ?> (KES <?= number_format($uniform['price'], 2) ?>)</label>
-        <div style="display:flex; gap:10px; margin-top:5px;">
-          <input type="number" name="uniforms[<?= $uniform['id'] ?>][quantity]" 
-                 placeholder="Qty" min="0" value="1" style="flex:1;">
-          <input type="number" name="uniforms[<?= $uniform['id'] ?>][amount]" 
-                 placeholder="Amount Paid" min="0" step="0.01" style="flex:1;">
+            <button type="submit" class="btn">Make Payment</button>
+        </form>
         </div>
-      </div>
-    <?php endwhile; ?>
-
-    <label>Payment Method:</label>
-    <select name="payment_type" required>
-      <option value="Cash">Cash</option>
-      <option value="Mpesa">Mpesa</option>
-      <option value="Bank">Bank</option>
-      <option value="Other">Other</option>
-    </select>
-
-    <button type="submit" class="btn">Make Payment</button>
-  </form>
+    </main>
 </div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(document).ready(function () {
+  // Check if jQuery loaded
+  if (typeof $ === 'undefined') {
+    console.error('jQuery not loaded!');
+    return;
+  } else {
+    console.log('jQuery version:', $.fn.jquery);
+  }
+
+  // Student search AJAX live suggestions
+  $('#student-search').on('input', function () {
+    const query = $(this).val().trim();
+    
+    // Clear suggestions if input is empty
+    if (query.length === 0) {
+      $('#suggestions').empty();
+      return;
+    }
+
+    $.ajax({
+      url: 'search-students.php',
+      method: 'POST',
+      dataType: 'json',
+      data: { query },
+      success: function (response) {
+        $('#suggestions').empty();
+        if (Array.isArray(response) && response.length > 0) {
+          response.forEach(function (student) {
+            $('#suggestions').append(`
+              <div class="suggestion-item" 
+                  data-admission="${student.admission_no}" 
+                  data-name="${student.name}" 
+                  data-class="${student.class}">
+                ${student.name} - ${student.admission_no} - ${student.class}
+              </div>
+            `);
+          });
+        } else {
+          $('#suggestions').append('<div class="suggestion-item">No records found</div>');
+        }
+      },
+      error: function (xhr, status, error) {
+        console.error('Error fetching students:', status, error);
+        $('#suggestions').html('<div class="suggestion-item">Error fetching data</div>');
+      }
+    });
+  });
+
+  // When user clicks a suggestion item
+  $('#suggestions').on('click', '.suggestion-item', function () {
+    const name = $(this).data('name');
+    const admission = $(this).data('admission');
+    const studentClass = $(this).data('class');
+
+    $('#student-search').val(`${name} - ${admission} - ${studentClass}`);
+    $('#admission_no').val(admission);
+    $('#suggestions').empty();
+  });
+
+  // Hide suggestions if clicking outside the form group
+  $(document).on('click', function (e) {
+    if (!$(e.target).closest('.form-group').length) {
+      $('#suggestions').empty();
+    }
+  });
+});
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+    /* ===== Real-time clock ===== */
+    function updateClock() {
+        const clockElement = document.getElementById('realTimeClock');
+        if (clockElement) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            clockElement.textContent = timeString;
+        }
+    }
+    updateClock(); 
+    setInterval(updateClock, 1000);
+
+    /* ===== Dropdowns: only one open ===== */
+    document.querySelectorAll(".dropdown-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const parent = btn.parentElement;
+
+            document.querySelectorAll(".dropdown").forEach(drop => {
+                if (drop !== parent) {
+                    drop.classList.remove("open");
+                }
+            });
+
+            parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Keep dropdown open if current page matches a child link ===== */
+    const currentUrl = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+        const links = drop.querySelectorAll("a");
+        links.forEach(link => {
+            const linkUrl = link.getAttribute("href");
+            if (linkUrl && linkUrl.includes(currentUrl)) {
+                drop.classList.add("open");
+            }
+        });
+    });
+
+    /* ===== Sidebar toggle for mobile ===== */
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-btn');
+    const overlay = document.createElement('div');
+    overlay.classList.add('sidebar-overlay');
+    document.body.appendChild(overlay);
+
+    toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    });
+
+    /* ===== Close sidebar on outside click ===== */
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    });
+
+    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
+    let logoutTimer;
+
+    function resetLogoutTimer() {
+        clearTimeout(logoutTimer);
+        logoutTimer = setTimeout(() => {
+            window.location.href = 'logout.php'; // Change to your logout URL
+        }, 300000); // 30 seconds
+    }
+
+    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, resetLogoutTimer);
+    });
+
+    resetLogoutTimer();
+});
+</script>
+<script>
+function calculateTotalAmount() {
+  let total = 0;
+
+  // Add school and lunch fee
+  const schoolAmount = parseFloat($('input[name="school_amount"]').val()) || 0;
+  const lunchAmount = parseFloat($('input[name="lunch_amount"]').val()) || 0;
+  total += schoolAmount + lunchAmount;
+
+  // Add 'other' fees
+  $('input[name^="others"]').each(function () {
+    const val = parseFloat($(this).val());
+    if (!isNaN(val)) total += val;
+  });
+
+  // Add book payments
+  $('input[name^="books"][name$="[amount]"]').each(function () {
+    const val = parseFloat($(this).val());
+    if (!isNaN(val)) total += val;
+  });
+
+  // Add uniform payments
+  $('input[name^="uniforms"][name$="[amount]"]').each(function () {
+    const val = parseFloat($(this).val());
+    if (!isNaN(val)) total += val;
+  });
+
+  // Update display
+  $('#total-amount').text(total.toFixed(2));
+}
+
+$(document).ready(function () {
+  // Recalculate total whenever any relevant input changes
+  $('input[type="number"]').on('input', calculateTotalAmount);
+});
+</script>
 
 </body>
 </html>

@@ -44,6 +44,7 @@ function formatAmount($amt){ return number_format($amt,2); }
 <meta charset="UTF-8" />
 <title>Receipt <?= htmlspecialchars($receipt_no) ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet" />
+<link rel="website icon" type="png" href="../images/school-logo.jpg">
 <style>
   body {
     font-family: Arial, sans-serif;
@@ -151,7 +152,7 @@ function formatAmount($amt){ return number_format($amt,2); }
           <tr>
             <td>Lunch Fee</td>
             <td><?= formatAmount($lf['amount_paid']) ?></td>
-            <td><?= formatAmount($balance) ?></td>
+            <td>N/A</td>
           </tr>
         <?php endforeach; ?>
 

@@ -880,18 +880,12 @@ $conn->close();
       <form id="feeForm">
         <!-- Student Search -->
         <div class="form-group">
-<<<<<<< HEAD:php/others3.php
             <input type="text" id="student-search" placeholder="Search student..." autocomplete="off" 
                   value="<?= htmlspecialchars($prefill_name); ?>">
             <input type="hidden" id="admission_no" name="admission_no" 
                   value="<?= htmlspecialchars($prefill_adm); ?>">
             <input type="hidden" id="student_name" name="student_name" 
                   value="<?= htmlspecialchars($prefill_name); ?>">
-=======
-          <input type="text" id="student-search" placeholder="Search student..." autocomplete="off" value="<?= htmlspecialchars($prefill_name); ?>">
-          <input type="hidden" id="admission_no" name="admission_no" value="<?= htmlspecialchars($prefill_adm); ?>">
-          <input type="hidden" id="student_name" name="student_name">
->>>>>>> b4aee09ced8503930d124e17d6f6ac8c5a2e4a15:php/others.php
           <div id="suggestions"></div>
         </div>
 
