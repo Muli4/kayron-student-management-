@@ -1,15 +1,11 @@
 <?php
 session_start();
-
-// ============================
-// ACCESS CONTROL
-// ============================
 if (!isset($_SESSION['username'])) {
-    echo "<script>alert('Unauthorized access. Please login.'); window.location.href='../index.php';</script>";
+    header("Location: ../index.php");
     exit();
 }
+include 'db.php';
 
-require 'db.php';
 
 $DAILY_FEE   = 70;
 $VALID_DAYS  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -371,7 +367,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // ----------------------------------------------------
         // BOOKS
         // ----------------------------------------------------
-
         if (!empty($_POST['books'])) {
             foreach ($_POST['books'] as $book_id => $book_data) {
                 $quantity = intval($book_data['quantity'] ?? 0);
@@ -391,16 +386,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $unit_price = $book_info['price'];
                 $total_price = $unit_price * $quantity;
 
-                // Step 1: Check old balance for this book for this child
-                $stmt = $conn->prepare("SELECT id, balance FROM book_purchases WHERE admission_no=? AND book_name=? AND balance > 0 ORDER BY id ASC");
+                // Step 1: Fetch any previous unpaid balances for the same book
+                $stmt = $conn->prepare("SELECT id, balance FROM book_purchases 
+                                        WHERE admission_no=? AND book_name=? AND balance > 0 
+                                        ORDER BY id ASC");
                 $stmt->bind_param("ss", $admission_no, $book_name);
                 $stmt->execute();
                 $old_balance_records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
 
                 $remaining_payment = $amount_paid;
+                $paid_to_old_balances = 0;
 
-                // Step 2: Deduct old balances first
+                // Step 2: Settle previous balances
                 foreach ($old_balance_records as $record) {
                     if ($remaining_payment <= 0) break;
 
@@ -408,58 +406,61 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $old_balance_amount = floatval($record['balance']);
 
                     if ($remaining_payment >= $old_balance_amount) {
-                        // Fully pay old balance
+                        // Full payment of old balance
                         $payment_to_old = $old_balance_amount;
                         $remaining_payment -= $payment_to_old;
-
-                        // Update old record balance to zero
-                        $stmt = $conn->prepare("UPDATE book_purchases SET balance = 0, amount_paid = amount_paid + ? WHERE id = ?");
-                        $stmt->bind_param("di", $payment_to_old, $old_balance_id);
-                        $stmt->execute();
-                        $stmt->close();
                     } else {
-                        // Partially pay old balance
+                        // Partial payment
                         $payment_to_old = $remaining_payment;
                         $remaining_payment = 0;
-
-                        // Reduce old balance accordingly and increase amount_paid
-                        $stmt = $conn->prepare("UPDATE book_purchases SET balance = balance - ?, amount_paid = amount_paid + ? WHERE id = ?");
-                        $stmt->bind_param("ddi", $payment_to_old, $payment_to_old, $old_balance_id);
-                        $stmt->execute();
-                        $stmt->close();
                     }
+
+                    $paid_to_old_balances += $payment_to_old;
+
+                    // Update old record
+                    $stmt = $conn->prepare("UPDATE book_purchases 
+                                            SET balance = balance - ?, amount_paid = amount_paid + ? 
+                                            WHERE id = ?");
+                    $stmt->bind_param("ddi", $payment_to_old, $payment_to_old, $old_balance_id);
+                    $stmt->execute();
+                    $stmt->close();
                 }
 
-                // Step 3: Apply remaining payment to new purchase
-                $new_balance = $total_price - $remaining_payment;
-                if ($new_balance < 0) {
-                    // Overpayment on new purchase (handle if needed)
-                    $remaining_payment = $total_price; // pay full price
-                    $new_balance = 0;
+                // Step 3: Only insert new record if some money is left for the new book
+                if ($remaining_payment > 0) {
+                    // Calculate how much of the new book is unpaid
+                    $new_balance = $total_price - $remaining_payment;
+                    if ($new_balance < 0) {
+                        $remaining_payment = $total_price; // Overpaid
+                        $new_balance = 0;
+                    }
+
+                    // Insert new book purchase record
+                    $stmt = $conn->prepare("INSERT INTO book_purchases 
+                        (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->bind_param("ssssiidds", $receipt_number, $admission_no, $name, $book_name, $quantity, 
+                                    $total_price, $remaining_payment, $new_balance, $payment_type);
+                    $stmt->execute();
+                    $stmt->close();
                 }
 
-                // Insert new book purchase record with the payment after deducting old balances
-                $stmt = $conn->prepare("INSERT INTO book_purchases 
-                    (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("ssssiidds", $receipt_number, $admission_no, $name, $book_name, $quantity, 
-                                $total_price, $remaining_payment, $new_balance, $payment_type);
-                $stmt->execute();
-                $stmt->close();
-
-                // Log in purchase_transactions
-                $stmt = $conn->prepare("INSERT INTO purchase_transactions
-                    (receipt_number, admission_no, name, total_amount_paid, payment_type)
-                    VALUES (?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssds", $receipt_number, $admission_no, $name, $amount_paid, $payment_type);
-                $stmt->execute();
-                $stmt->close();
+                // Step 4: Log total amount paid (whether old or new) into purchase_transactions
+                if ($amount_paid > 0) {
+                    $stmt = $conn->prepare("INSERT INTO purchase_transactions
+                        (receipt_number, admission_no, name, total_amount_paid, payment_type)
+                        VALUES (?, ?, ?, ?, ?)");
+                    $stmt->bind_param("sssds", $receipt_number, $admission_no, $name, $amount_paid, $payment_type);
+                    $stmt->execute();
+                    $stmt->close();
+                }
             }
         }
 
 
+
         // ----------------------------------------------------
-        // UNIFORM
+        // UNIFORMS
         // ----------------------------------------------------
         if (!empty($_POST['uniforms'])) {
             foreach ($_POST['uniforms'] as $uniform_id => $uniform_data) {
@@ -467,30 +468,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $amount_paid = floatval($uniform_data['amount'] ?? 0);
                 if ($quantity < 1 || $amount_paid <= 0) continue;
 
-                // Fetch uniform details from uniform_prices table using ID
+                // Fetch uniform details
                 $stmt = $conn->prepare("SELECT uniform_type, size, price FROM uniform_prices WHERE id = ?");
                 $stmt->bind_param("i", $uniform_id);
                 $stmt->execute();
                 $price_info = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
 
-                if (!$price_info) continue; // No matching uniform found
+                if (!$price_info) continue;
 
                 $uniform_type = $price_info['uniform_type'];
                 $size = $price_info['size'];
                 $unit_price = floatval($price_info['price']);
                 $total_price = $unit_price * $quantity;
 
-                // Step 1: Get all old balances for this uniform type and size, admission_no
-                $stmt = $conn->prepare("SELECT id, balance FROM uniform_purchases WHERE admission_no=? AND uniform_type=? AND size=? AND balance > 0 ORDER BY id ASC");
+                // Step 1: Get any old uniform balances
+                $stmt = $conn->prepare("SELECT id, balance FROM uniform_purchases 
+                                        WHERE admission_no = ? AND uniform_type = ? AND size = ? AND balance > 0 
+                                        ORDER BY id ASC");
                 $stmt->bind_param("sss", $admission_no, $uniform_type, $size);
                 $stmt->execute();
                 $old_balance_records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
 
                 $remaining_payment = $amount_paid;
+                $paid_to_old_balances = 0;
 
-                // Step 2: Deduct old balances first
+                // Step 2: Settle old balances first
                 foreach ($old_balance_records as $record) {
                     if ($remaining_payment <= 0) break;
 
@@ -498,52 +502,54 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     $old_balance = floatval($record['balance']);
 
                     if ($remaining_payment >= $old_balance) {
-                        // Fully pay old balance
                         $payment_to_old = $old_balance;
                         $remaining_payment -= $payment_to_old;
-
-                        $stmt = $conn->prepare("UPDATE uniform_purchases SET balance = 0, amount_paid = amount_paid + ? WHERE id = ?");
-                        $stmt->bind_param("di", $payment_to_old, $old_id);
-                        $stmt->execute();
-                        $stmt->close();
                     } else {
-                        // Partially pay old balance
                         $payment_to_old = $remaining_payment;
                         $remaining_payment = 0;
-
-                        $stmt = $conn->prepare("UPDATE uniform_purchases SET balance = balance - ?, amount_paid = amount_paid + ? WHERE id = ?");
-                        $stmt->bind_param("ddi", $payment_to_old, $payment_to_old, $old_id);
-                        $stmt->execute();
-                        $stmt->close();
                     }
+
+                    $paid_to_old_balances += $payment_to_old;
+
+                    // Update existing record
+                    $stmt = $conn->prepare("UPDATE uniform_purchases 
+                                            SET balance = balance - ?, amount_paid = amount_paid + ? 
+                                            WHERE id = ?");
+                    $stmt->bind_param("ddi", $payment_to_old, $payment_to_old, $old_id);
+                    $stmt->execute();
+                    $stmt->close();
                 }
 
-                // Step 3: Calculate new balance after applying remaining payment
-                $new_balance = $total_price - $remaining_payment;
-                if ($new_balance < 0) {
-                    // Overpayment scenario, adjust payment and balance accordingly
-                    $remaining_payment = $total_price;
-                    $new_balance = 0;
+                // Step 3: Only insert new record if payment is left after old debts
+                if ($remaining_payment > 0) {
+                    $new_balance = $total_price - $remaining_payment;
+                    if ($new_balance < 0) {
+                        $remaining_payment = $total_price;
+                        $new_balance = 0;
+                    }
+
+                    // Insert new uniform purchase
+                    $stmt = $conn->prepare("INSERT INTO uniform_purchases 
+                        (receipt_number, admission_no, name, uniform_type, size, quantity, total_price, amount_paid, balance, payment_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->bind_param("sssssiidds", $receipt_number, $admission_no, $name, $uniform_type, $size, $quantity, 
+                                    $total_price, $remaining_payment, $new_balance, $payment_type);
+                    $stmt->execute();
+                    $stmt->close();
                 }
 
-                // Step 4: Insert new uniform purchase record
-                $stmt = $conn->prepare("INSERT INTO uniform_purchases 
-                    (receipt_number, admission_no, name, uniform_type, size, quantity, total_price, amount_paid, balance, payment_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssssiidds", $receipt_number, $admission_no, $name, $uniform_type, $size, $quantity, 
-                                $total_price, $remaining_payment, $new_balance, $payment_type);
-                $stmt->execute();
-                $stmt->close();
-
-                // Step 5: Log transaction (optional: aggregate total outside loop)
-                $stmt = $conn->prepare("INSERT INTO purchase_transactions 
-                    (receipt_number, admission_no, name, total_amount_paid, payment_type)
-                    VALUES (?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssds", $receipt_number, $admission_no, $name, $amount_paid, $payment_type);
-                $stmt->execute();
-                $stmt->close();
+                // Step 4: Log full payment into purchase_transactions
+                if ($amount_paid > 0) {
+                    $stmt = $conn->prepare("INSERT INTO purchase_transactions 
+                        (receipt_number, admission_no, name, total_amount_paid, payment_type)
+                        VALUES (?, ?, ?, ?, ?)");
+                    $stmt->bind_param("sssds", $receipt_number, $admission_no, $name, $amount_paid, $payment_type);
+                    $stmt->execute();
+                    $stmt->close();
+                }
             }
         }
+
         
         // ----------------------------------------------------
         // COMMIT ALL
