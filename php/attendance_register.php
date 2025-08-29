@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // Fetch day details
     $dayQuery = $conn->prepare("
-        SELECT d.day_name, w.week_number, t.term_number
+        SELECT d.day_name, w.week_number, t.term_number, t.id as term_id, t.start_date, t.end_date
         FROM days d
         JOIN weeks w ON d.week_id = w.id
         JOIN terms t ON w.term_id = t.id
@@ -37,8 +37,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $day_name = $dayData['day_name'];
     $week_number = $dayData['week_number'];
     $term_number = $dayData['term_number'];
+    $term_id = $dayData['term_id'];
+    $term_start = $dayData['start_date'];
+    $term_end = $dayData['end_date'];
+
+    // Mapping order of weekdays
+    $daysOrder = ['monday','tuesday','wednesday','thursday','friday'];
 
     foreach ($attendance as $admission_no => $status) {
+        // Insert or update attendance
         $stmt = $conn->prepare("
             INSERT INTO attendance (admission_no, term_number, week_number, day_id, day_name, status)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -46,6 +53,115 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         ");
         $stmt->bind_param("siiiss", $admission_no, $term_number, $week_number, $day_id, $day_name, $status);
         $stmt->execute();
+
+        // ===================== Handle lunch fees when absent =====================
+        if ($status === "Absent") {
+            $dayColumn = strtolower($day_name); // e.g. Tuesday -> tuesday
+
+            // Fetch lunch fees row for current week
+            $lq = $conn->prepare("
+                SELECT * FROM lunch_fees 
+                WHERE admission_no=? AND term_id=? AND week_number=? LIMIT 1
+            ");
+            $lq->bind_param("sii", $admission_no, $term_id, $week_number);
+            $lq->execute();
+            $lres = $lq->get_result();
+
+            if ($lrow = $lres->fetch_assoc()) {
+                $currentAmt = $lrow[$dayColumn];
+                if ($currentAmt > 0) {
+                    // Set absent day fee to zero
+                    $update = $conn->prepare("UPDATE lunch_fees SET $dayColumn=0 WHERE id=?");
+                    $update->bind_param("i", $lrow['id']);
+                    $update->execute();
+
+                    $amountToMove = $currentAmt;
+
+                    // 1️⃣ Try reallocating within SAME week, days after current day
+                    $dayIndex = array_search($dayColumn, $daysOrder);
+                    for ($i = $dayIndex + 1; $i < count($daysOrder) && $amountToMove > 0; $i++) {
+                        $d = $daysOrder[$i];
+                        if ($lrow[$d] < 70) {
+                            $needed = 70 - $lrow[$d];
+                            $alloc = min($needed, $amountToMove);
+                            $newVal = $lrow[$d] + $alloc;
+
+                            $upd = $conn->prepare("UPDATE lunch_fees SET $d=? WHERE id=?");
+                            $upd->bind_param("di", $newVal, $lrow['id']);
+                            $upd->execute();
+
+                            $amountToMove -= $alloc;
+                            $lrow[$d] = $newVal;
+                        }
+                    }
+
+                    // 2️⃣ If still balance, push into FUTURE weeks of same term
+                    $futureWeek = $week_number + 1;
+                    while ($amountToMove > 0) {
+                        $fq = $conn->prepare("
+                            SELECT * FROM lunch_fees 
+                            WHERE admission_no=? AND term_id=? AND week_number=? LIMIT 1
+                        ");
+                        $fq->bind_param("sii", $admission_no, $term_id, $futureWeek);
+                        $fq->execute();
+                        $fres = $fq->get_result();
+
+                        if ($frow = $fres->fetch_assoc()) {
+                            // Allocate into this future week
+                            foreach ($daysOrder as $d) {
+                                if ($amountToMove <= 0) break;
+                                if ($frow[$d] < 70) {
+                                    $needed = 70 - $frow[$d];
+                                    $alloc = min($needed, $amountToMove);
+                                    $newVal = $frow[$d] + $alloc;
+
+                                    $upd = $conn->prepare("UPDATE lunch_fees SET $d=?, total_paid=total_paid+?, balance=balance-? WHERE id=?");
+                                    $upd->bind_param("diii", $newVal, $alloc, $alloc, $frow['id']);
+                                    $upd->execute();
+
+                                    $amountToMove -= $alloc;
+                                }
+                            }
+                        } else {
+                            // No future week row → try to create one if term not ended
+                            $weekStartDate = date('Y-m-d', strtotime($term_start . " +".($futureWeek-1)." week"));
+                            if ($weekStartDate <= $term_end) {
+                                // Create new week
+                                $conn->query("INSERT INTO weeks (term_id, week_number) VALUES ($term_id, $futureWeek)");
+                                $newWeekId = $conn->insert_id;
+
+                                // Create 5 days (Mon-Fri)
+                                foreach ($daysOrder as $dname) {
+                                    $conn->query("INSERT INTO days (week_id, day_name) VALUES ($newWeekId, '".ucfirst($dname)."')");
+                                }
+
+                                // Create lunch_fees row for student
+                                $conn->query("
+                                    INSERT INTO lunch_fees (admission_no, term_id, week_number, total_paid, balance, total_amount)
+                                    VALUES ('$admission_no', $term_id, $futureWeek, 0, 350, 350)
+                                ");
+
+                                // Retry this week allocation
+                                continue;
+                            } else {
+                                // Term ended, stop
+                                break;
+                            }
+                        }
+
+                        $futureWeek++;
+                    }
+
+                    // 3️⃣ If still balance left → add to carry_forward in current week
+                    if ($amountToMove > 0) {
+                        $newCarry = $lrow['carry_forward'] + $amountToMove;
+                        $upd = $conn->prepare("UPDATE lunch_fees SET carry_forward=? WHERE id=?");
+                        $upd->bind_param("di", $newCarry, $lrow['id']);
+                        $upd->execute();
+                    }
+                }
+            }
+        }
     }
 
     echo "<script>alert('Attendance Saved Successfully!'); window.location.href='attendance_register.php?class={$_POST['class']}&day_id={$day_id}';</script>";
@@ -64,6 +180,8 @@ $daysQuery = "
 $daysRes = $conn->query($daysQuery);
 $days = $daysRes->fetch_all(MYSQLI_ASSOC);
 ?>
+
+
 
 
 <!DOCTYPE html>

@@ -557,10 +557,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // COMMIT ALL
         // ----------------------------------------------------
         $conn->commit();
-        echo "<script>window.open('receipt.php?receipt_no={$receipt_number}', '_blank');
-        window.location.href = 'school-fee-handler.php';
+        echo "<script>
+            var win = window.open('receipt.php?receipt_no={$receipt_number}', '_blank');
+            if (!win) {
+                alert('⚠️ Pop-up blocked! Please allow pop-ups for this site.');
+            }
+            setTimeout(function() {
+                window.location.href = 'school-fee-handler.php';
+            }, 500);
         </script>";
-        exit();
 
     } catch (Exception $e) {
         $conn->rollback();

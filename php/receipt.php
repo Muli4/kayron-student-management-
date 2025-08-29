@@ -1,9 +1,10 @@
 <?php
 session_start();
 if (!isset($_SESSION['username'])) {
-    echo "Unauthorized access"; exit();
+    header("Location: ../index.php");
+    exit();
 }
-include 'db.php';
+require 'db.php';
 
 $receipt_no = $_GET['receipt_no'] ?? '';
 if (!$receipt_no) { echo "No receipt specified."; exit(); }
@@ -25,6 +26,7 @@ $class = $student['class'] ?? '';
 $payment_type = $student['payment_type'] ?? 'Cash';
 
 $total_paid = 0;
+$total_balance = 0; // For accumulating balances from other fees
 
 // === Fetch total school fee balance from school_fees table ===
 $balance_result = $conn->query("
@@ -35,7 +37,7 @@ $balance_result = $conn->query("
 $data = $balance_result->fetch_assoc();
 $school_fee_balance = $data['total_balance'] ?? 0;
 
-function formatAmount($amt){ return number_format($amt,2); }
+function formatAmount($amt){ return number_format($amt, 2); }
 ?>
 
 <!DOCTYPE html>
@@ -60,6 +62,21 @@ function formatAmount($amt){ return number_format($amt,2); }
     margin: 0 auto;
     text-align: left;
   }
+  .receipt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-left {
+  text-align: left;
+}
+
+.header-right .logo {
+  max-width: 60px; /* adjust as needed */
+  height: auto;
+}
+
   .logo {
     display: block;
     margin: 0 auto 10px auto;
@@ -86,15 +103,9 @@ function formatAmount($amt){ return number_format($amt,2); }
   .center {
     text-align: center;
   }
-  .barcode {
-    margin-top: 15px;
-    font-family: 'Libre Barcode 39', monospace;
-    font-size: 32px;
-    letter-spacing: 2px;
+  .phone {
     text-align: center;
-  }
-  .phone{
-    text-align: center;
+    font-size: 14px;
   }
   .total {
     font-weight: bold;
@@ -102,29 +113,43 @@ function formatAmount($amt){ return number_format($amt,2); }
     padding-top: 8px;
     margin-top: 5px;
     text-align: center;
+    font-size: 14px;
   }
+  .approve {
+  margin-top: 20px;
+  font-weight: bold;
+  text-align: center;
+  font-size: 13px;
+}
+
   .thanks {
     margin-top: 15px;
     font-weight: bold;
     text-align: center;
+    font-size: 14px;
   }
 </style>
 </head>
 <body>
-  <div class="receipt-box">
-    <img src="../images/school-logo.jpg" alt="School Logo" class="logo" />
-    <h2>KAYRON JUNIOR SCHOOL</h2>
-    <div class="phone">Tel: 0711686866 / 0731156576</div>
-    <h3>Official Receipt</h3>
+    <div class="receipt-box">
+      <div class="receipt-header">
+        <div class="header-left">
+          <h2>KAYRON JUNIOR SCHOOL</h2>
+          <div class="phone">Tel: 0711686866 / 0731156576</div>
+          <h3>Official Receipt</h3>
+        </div>
+        <div class="header-right">
+          <img src="../images/school-logo.jpg" alt="School Logo" class="logo" />
+        </div>
+      </div>
+
     <table>
       <tr><th>Date:</th><td><?= date('d-m-Y') ?></td></tr>
       <tr><th>Receipt No:</th><td><?= htmlspecialchars($receipt_no) ?></td></tr>
       <tr><th>Admission No:</th><td><?= htmlspecialchars($admission_no) ?></td></tr>
       <tr><th>Student Name:</th><td><?= htmlspecialchars($name) ?></td></tr>
-      <tr><th>Payment Method:</th><td><?= htmlspecialchars($payment_type) ?></td></tr>
     </table>
 
-    <h4 class="center"> Payments</h4>
     <table>
       <thead>
         <tr>
@@ -134,9 +159,17 @@ function formatAmount($amt){ return number_format($amt,2); }
         </tr>
       </thead>
       <tbody>
-        <?php foreach($school_fees as $sf): 
+        <?php foreach ($school_fees as $sf): 
             $total_paid += $sf['amount_paid'];
-            $balance_display = formatAmount($school_fee_balance);
+
+            // === Only show Carry Forward in this section
+            if ($school_fee_balance < 0) {
+                $balance_display = 'Carry Forward (KES ' . formatAmount(abs($school_fee_balance)) . ')';
+            } elseif ($school_fee_balance == 0) {
+                $balance_display = 'Cleared';
+            } else {
+                $balance_display = formatAmount($school_fee_balance);
+            }
         ?>
         <tr>
           <td>School Fee</td>
@@ -145,57 +178,71 @@ function formatAmount($amt){ return number_format($amt,2); }
         </tr>
         <?php endforeach; ?>
 
-        <?php foreach($lunch_fees as $lf): 
-          $total_paid += $lf['amount_paid'];
-          $balance = isset($lf['balance']) ? $lf['balance'] : 0;
+        <?php foreach ($lunch_fees as $lf): 
+            $total_paid += $lf['amount_paid'];
         ?>
-          <tr>
-            <td>Lunch Fee</td>
-            <td><?= formatAmount($lf['amount_paid']) ?></td>
-            <td>N/A</td>
-          </tr>
+        <tr>
+          <td>Lunch Fee</td>
+          <td><?= formatAmount($lf['amount_paid']) ?></td>
+          <td>N/A</td>
+        </tr>
         <?php endforeach; ?>
 
-        <?php foreach($others as $o): 
-          $total_paid += $o['amount_paid'];
-          $balance = isset($o['balance']) ? $o['balance'] : 0;
+        <?php foreach ($others as $o): 
+            $total_paid += $o['amount_paid'];
+            $balance = isset($o['balance']) ? $o['balance'] : 0;
+            $total_balance += $balance;
         ?>
-          <tr>
-            <td><?= htmlspecialchars($o['fee_type']) ?></td>
-            <td><?= formatAmount($o['amount_paid']) ?></td>
-            <td><?= formatAmount($balance) ?></td>
-          </tr>
+        <tr>
+          <td><?= htmlspecialchars($o['fee_type']) ?></td>
+          <td><?= formatAmount($o['amount_paid']) ?></td>
+          <td><?= formatAmount($balance) ?></td>
+        </tr>
         <?php endforeach; ?>
 
-        <?php foreach($uniforms as $u): 
-          $total_paid += $u['amount_paid'];
-          $balance = isset($u['balance']) ? $u['balance'] : 0;
+        <?php foreach ($uniforms as $u): 
+            $total_paid += $u['amount_paid'];
+            $balance = isset($u['balance']) ? $u['balance'] : 0;
+            $total_balance += $balance;
         ?>
-          <tr>
-            <td>Uniform (<?= htmlspecialchars($u['uniform_type'].' - '.$u['size']) ?>)</td>
-            <td><?= formatAmount($u['amount_paid']) ?></td>
-            <td><?= formatAmount($balance) ?></td>
-          </tr>
+        <tr>
+          <td>Uniform (<?= htmlspecialchars($u['uniform_type'] . ' - ' . $u['size']) ?>)</td>
+          <td><?= formatAmount($u['amount_paid']) ?></td>
+          <td><?= formatAmount($balance) ?></td>
+        </tr>
         <?php endforeach; ?>
 
-        <?php foreach($books as $b): 
-          $total_paid += $b['amount_paid'];
-          $balance = isset($b['balance']) ? $b['balance'] : 0;
+        <?php foreach ($books as $b): 
+            $total_paid += $b['amount_paid'];
+            $balance = isset($b['balance']) ? $b['balance'] : 0;
+            $total_balance += $balance;
         ?>
-          <tr>
-            <td>Book (<?= htmlspecialchars($b['book_name']) ?>)</td>
-            <td><?= formatAmount($b['amount_paid']) ?></td>
-            <td><?= formatAmount($balance) ?></td>
-          </tr>
+        <tr>
+          <td>Book (<?= htmlspecialchars($b['book_name']) ?>)</td>
+          <td><?= formatAmount($b['amount_paid']) ?></td>
+          <td><?= formatAmount($balance) ?></td>
+        </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
 
     <div class="total">Total Paid: KES <?= formatAmount($total_paid) ?></div>
 
-    <div class="thanks">Thank you for trusting in our school.<br>Always working to output the best!</div>
+    <div class="total">Total Balance: 
+      <?php 
+        // Only add positive school fee balance
+        $adjusted_school_fee_balance = $school_fee_balance > 0 ? $school_fee_balance : 0;
+        $final_balance = $adjusted_school_fee_balance + $total_balance;
 
-    <div class="barcode">*<?= htmlspecialchars($receipt_no) ?>*</div>
+        if ($final_balance == 0) {
+            echo 'Cleared';
+        } else {
+            echo 'KES ' . formatAmount($final_balance);
+        }
+      ?>
+    </div>
+    <div class="approve">Approved By: <?= htmlspecialchars($_SESSION['username']) ?></div>
+    <div class="thanks">Thank you for trusting in our school.<br>Always working to output the best!</div>
   </div>
 
 <script>window.print();</script>

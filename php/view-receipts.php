@@ -286,75 +286,171 @@ function printReceipt(receiptNumber, data) {
     });
 
     win.document.write(`
-        <html>
-        <head>
-            <title>Receipt</title>
-            <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
-            <style>
-                body { font-family: Arial, sans-serif; font-size: 14px; text-align: center; }
-                .receipt-box {
-                    border: 1px dotted black;
-                    padding: 15px;
-                    width: 350px;
-                    margin: 0 auto;
-                }
-                table {
-                    width: 100%;
-                    margin-top: 10px;
-                    border-collapse: collapse;
-                }
-                th, td {
-                    padding: 5px;
-                    border-bottom: 1px dotted black;
-                    text-align: left;
-                }
-                .center { text-align: center; }
-                .barcode {
-                    margin-top: 10px;
-                    font-family: 'Libre Barcode 39', monospace;
-                    font-size: 32px;
-                    letter-spacing: 2px;
-                }
-                .total {
-                    font-weight: bold;
-                    border-top: 1px dotted black;
-                    padding-top: 8px;
-                    margin-top: 5px;
-                }
-                .thanks {
-                    margin-top: 10px;
-                    font-weight: bold;
-                }
-                .approved {
-                    margin-top: 10px;
-                    font-style: italic;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="receipt-box">
+<head>
+    <meta charset="UTF-8">
+    <title>Receipt</title>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            background: #f8f8f8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .receipt-box {
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 25px;
+            max-width: 400px;
+            margin: auto;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+
+        .receipt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .header-left {
+            text-align: left;
+            flex: 1;
+        }
+
+        .header-left h2 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .header-left .phone {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .header-left h3 {
+            margin-top: 10px;
+            font-size: 16px;
+            text-transform: uppercase;
+            color: #444;
+        }
+
+        .logo {
+            width: 70px;
+            height: auto;
+            margin-left: 10px;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 10px;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            color: #555;
+            width: 40%;
+        }
+
+        h4.center {
+            text-align: center;
+            margin: 20px 0 10px;
+            font-size: 15px;
+            border-top: 1px dashed #aaa;
+            padding-top: 10px;
+            color: #333;
+        }
+
+        .total {
+            font-weight: bold;
+            text-align: right;
+            margin-top: 10px;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+            font-size: 15px;
+        }
+
+        .thanks {
+            text-align: center;
+            margin-top: 20px;
+            font-weight: 500;
+            color: #444;
+            font-size: 13px;
+        }
+
+        .barcode {
+            margin-top: 15px;
+            font-family: 'Libre Barcode 39', monospace;
+            font-size: 40px;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+            }
+
+            .receipt-box {
+                box-shadow: none;
+                border: none;
+                padding: 10px;
+            }
+
+            .total {
+                border-top: 1px solid #000;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="receipt-box">
+        <div class="receipt-header">
+            <div class="header-left">
                 <h2>KAYRON JUNIOR SCHOOL</h2>
-                <div>Tel: 0703373151 / 0740047243</div>
+                <div class="phone">Tel: 0711686866 / 0731156576</div>
                 <h3>Official Receipt</h3>
-                <table>
-                    <tr><th>Date:</th><td>${data.date.split(' ')[0].replace(/\//g, '-')}</td></tr>
-                    <tr><th>Receipt No:</th><td>${receiptNumber}</td></tr>
-                    <tr><th>Admission No:</th><td>${data.admission_no}</td></tr>
-                    <tr><th>Student Name:</th><td>${data.student_name}</td></tr>
-                    <tr><th>Payment Method:</th><td>${data.payment_method}</td></tr>
-                </table>
-                <h4 class="center">Fee Payments</h4>
-                <table>
-                    <tr><th>Fee Type</th><th>Amount</th></tr>
-                    ${itemsHTML}
-                </table>
-                <div class="total">TOTAL: KES ${total.toFixed(2)}</div>
-                <div class="thanks">Thank you for trusting in our school.<br>Always working to output the best!</div>
-                <div class="barcode">*${receiptNumber}*</div>
             </div>
-        </body>
-        </html>
-    `);
+            <div class="header-right">
+                <img src="../images/school-logo.jpg" alt="School Logo" class="logo" />
+            </div>
+        </div>
+
+        <table>
+            <tr><th>Date:</th><td>${data.date.split(' ')[0].replace(/\//g, '-')}</td></tr>
+            <tr><th>Receipt No:</th><td>${receiptNumber}</td></tr>
+            <tr><th>Admission No:</th><td>${data.admission_no}</td></tr>
+            <tr><th>Student Name:</th><td>${data.student_name}</td></tr>
+            <tr><th>Payment Method:</th><td>${data.payment_method}</td></tr>
+        </table>
+
+        <h4 class="center">Fee Payments</h4>
+        <table>
+            <tr><th>Fee Type</th><th>Amount (KES)</th></tr>
+            ${itemsHTML}
+        </table>
+
+        <div class="total">TOTAL: KES ${total.toFixed(2)}</div>
+
+        <div class="thanks">
+            Thank you for trusting in our school.<br>
+            Always working to output the best!
+        </div>
+
+    </div>
+</body>
+</html>
+`);
     win.document.close();
     win.print();
 }
