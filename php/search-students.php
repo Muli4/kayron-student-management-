@@ -41,6 +41,7 @@ $result = $stmt->get_result();
 $suggestions = [];
 while ($row = $result->fetch_assoc()) {
     $suggestions[] = [
+        'label' => $row['admission_no'] . ' - ' . $row['name'] . ' - ' . $row['class'],
         'admission_no' => $row['admission_no'],
         'name' => $row['name'],
         'class' => $row['class']

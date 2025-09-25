@@ -7,7 +7,7 @@ if (!isset($_SESSION['username'])) {
 
 include 'db.php'; // Database connection
 
-$classes = ['babyclass', 'intermediate', 'PP1', 'PP2', 'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'];
+$classes = ['babyclass', 'intermediate', 'pp1', 'pp2', 'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'];
 
 // ===== AJAX live filter request ===== //
 if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
@@ -157,9 +157,10 @@ $result = $stmt->get_result();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Students</title>
     <link rel="stylesheet" href="../style/style-sheet.css">
-        <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <style>
@@ -353,13 +354,11 @@ table tbody tr:hover {
 
 /* Responsive */
 @media (max-width: 768px) {
-    #sidebar { display: none !important; }
     main.content { margin-left: 0 !important; width: 100% !important; padding: 1rem; }
     .dashboard-container { display: block; }
     table { display: block; width: 100%; overflow-x: auto; white-space: nowrap; }
     #class-filter, #admission-filter { width: 100%; max-width: 100%; margin-bottom: 1rem; }
 }
-
 </style>
 </head>
 <body>
@@ -656,11 +655,5 @@ $(document).ready(function () {
     resetLogoutTimer();
 });
 </script>
-
-
-
 </body>
 </html>
-
-
-

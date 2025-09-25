@@ -6,22 +6,22 @@ if (!isset($_SESSION['username'])) {
 }
 require 'db.php';
 
-$student_name = isset($_GET['name']) ? trim($_GET['name']) : '';
+$admission_no = isset($_GET['admission_no']) ? trim($_GET['admission_no']) : '';
 $groupedReceipts = [];
 
-if ($student_name !== '') {
-    $likeName = "%" . $conn->real_escape_string($student_name) . "%";
+if ($admission_no !== '') {
+    $likeAdm = "%" . $conn->real_escape_string($admission_no) . "%";
 
     $query = "
         SELECT receipt_number, payment_date AS date, 'Lunch fees' AS category, amount_paid, name, admission_no, payment_type 
         FROM lunch_fee_transactions 
-        WHERE name LIKE '$likeName'
+        WHERE admission_no LIKE '$likeAdm'
         
         UNION
         
         SELECT receipt_number, payment_date, 'School fees', amount_paid, name, admission_no, payment_type 
         FROM school_fee_transactions 
-        WHERE name LIKE '$likeName'
+        WHERE admission_no LIKE '$likeAdm'
         
         UNION
         
@@ -35,24 +35,23 @@ if ($student_name !== '') {
             ot.payment_type
         FROM other_transactions ot
         JOIN others o ON ot.others_id = o.id
-        WHERE o.name LIKE '$likeName'
+        WHERE o.admission_no LIKE '$likeAdm'
         
         UNION
         
         SELECT receipt_number, purchase_date, 'Book Purchase', amount_paid, name, admission_no, payment_type 
         FROM book_purchases 
-        WHERE name LIKE '$likeName'
+        WHERE admission_no LIKE '$likeAdm'
         
         UNION
         
         SELECT receipt_number, purchase_date, 'Uniform Purchase', amount_paid, name, admission_no, payment_type 
         FROM uniform_purchases 
-        WHERE name LIKE '$likeName'
+        WHERE admission_no LIKE '$likeAdm'
         
         ORDER BY date DESC
     ";
 
-    // Run query and show error if it fails
     $result = $conn->query($query);
     if (!$result) {
         die("Query failed: " . $conn->error);
@@ -73,7 +72,6 @@ if ($student_name !== '') {
             ];
         }
 
-        // Always prefer amount_paid (since all tables use it now)
         $amount = $row['amount_paid'];
 
         $groupedReceipts[$rn]['items'][] = [
@@ -96,14 +94,12 @@ if ($student_name !== '') {
     <link rel="website icon" type="png" href="../images/school-logo.jpg">
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
 <style>
-    /* Container */
+/* Container */
 .container-wrapper {
   max-width: 900px;
   margin: 30px auto;
   padding: 0 20px;
 }
-
-/* Headings */
 .container-wrapper h2 {
   text-align: center;
   margin-bottom: 20px;
@@ -111,14 +107,11 @@ if ($student_name !== '') {
   font-size: 1.8rem;
   color: #222;
 }
-
-/* Search box */
 .search-box {
   position: relative;
   max-width: 500px;
   margin: 0 auto 25px auto;
 }
-
 .search-box input[type="text"] {
   width: 100%;
   padding: 10px 12px;
@@ -128,13 +121,10 @@ if ($student_name !== '') {
   outline: none;
   transition: border-color 0.3s ease;
 }
-
 .search-box input[type="text"]:focus {
   border-color: #0056b3;
   box-shadow: 0 0 5px rgba(0,86,179,0.5);
 }
-
-/* Suggestions dropdown */
 #suggestions {
   position: absolute;
   width: 100%;
@@ -147,20 +137,16 @@ if ($student_name !== '') {
   border-radius: 0 0 6px 6px;
   box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-
 .suggestion-item {
   padding: 8px 12px;
   cursor: pointer;
   font-size: 0.95rem;
   color: #333;
 }
-
 .suggestion-item:hover {
   background-color: #007bff;
   color: white;
 }
-
-/* Receipt table */
 .receipt-table {
   width: 100%;
   border-collapse: collapse;
@@ -168,7 +154,6 @@ if ($student_name !== '') {
   font-size: 0.95rem;
   box-shadow: 0 0 8px rgba(0,0,0,0.05);
 }
-
 .receipt-table th,
 .receipt-table td {
   padding: 10px 12px;
@@ -176,14 +161,11 @@ if ($student_name !== '') {
   vertical-align: top;
   text-align: left;
 }
-
 .receipt-table th {
   background-color: #f5f5f5;
   font-weight: 600;
   color: #222;
 }
-
-/* Print button */
 .print-btn {
   background-color: #007bff;
   border: none;
@@ -194,33 +176,15 @@ if ($student_name !== '') {
   font-weight: 600;
   transition: background-color 0.3s ease;
 }
-
 .print-btn:hover {
   background-color: #0056b3;
 }
-
-/* Responsive */
 @media (max-width: 640px) {
-  .container-wrapper {
-    padding: 0 10px;
-  }
-
-  .receipt-table th,
-  .receipt-table td {
-    font-size: 0.9rem;
-    padding: 8px 6px;
-  }
-
-  .print-btn {
-    padding: 6px 10px;
-    font-size: 0.9rem;
-  }
-
-  .search-box {
-    max-width: 100%;
-  }
+  .container-wrapper { padding: 0 10px; }
+  .receipt-table th, .receipt-table td { font-size: 0.9rem; padding: 8px 6px; }
+  .print-btn { padding: 6px 10px; font-size: 0.9rem; }
+  .search-box { max-width: 100%; }
 }
-
 </style>
 </head>
 <body>
@@ -232,7 +196,7 @@ if ($student_name !== '') {
     <div class="container-wrapper">
         <h2>Student Receipts</h2>
         <form method="GET" class="search-box" autocomplete="off">
-            <input type="text" name="name" id="student-search" placeholder="Enter student name..." value="<?= htmlspecialchars($student_name) ?>" />
+            <input type="text" name="admission_no" id="student-search" placeholder="Enter admission number..." value="<?= htmlspecialchars($admission_no) ?>" />
             <div id="suggestions"></div>
         </form>
 
@@ -265,15 +229,14 @@ if ($student_name !== '') {
                     <?php endforeach; ?>
                 </tbody>
             </table>
-        <?php elseif ($student_name): ?>
-            <p>No receipts found for this student.</p>
+        <?php elseif ($admission_no): ?>
+            <p>No receipts found for this admission number.</p>
         <?php endif; ?>
     </div>
 </main>
 </div>
 <?php include '../includes/footer.php'; ?>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 function printReceipt(receiptNumber, data) {
     const win = window.open('', '', 'width=600,height=700');
@@ -287,167 +250,61 @@ function printReceipt(receiptNumber, data) {
 
     win.document.write(`
 <head>
-    <meta charset="UTF-8">
-    <title>Receipt</title>
-    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 14px;
-            background: #f8f8f8;
-            margin: 0;
-            padding: 20px;
-        }
-
-        .receipt-box {
-            background: #fff;
-            border: 1px solid #ccc;
-            padding: 25px;
-            max-width: 400px;
-            margin: auto;
-            box-shadow: 0 0 10px rgba(0,0,0,0.05);
-        }
-
-        .receipt-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .header-left {
-            text-align: left;
-            flex: 1;
-        }
-
-        .header-left h2 {
-            margin: 0;
-            font-size: 20px;
-            color: #333;
-        }
-
-        .header-left .phone {
-            font-size: 13px;
-            color: #666;
-        }
-
-        .header-left h3 {
-            margin-top: 10px;
-            font-size: 16px;
-            text-transform: uppercase;
-            color: #444;
-        }
-
-        .logo {
-            width: 70px;
-            height: auto;
-            margin-left: 10px;
-        }
-
-        table {
-            width: 100%;
-            margin-top: 10px;
-            border-collapse: collapse;
-        }
-
-        th, td {
-            padding: 6px 4px;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-        }
-
-        th {
-            color: #555;
-            width: 40%;
-        }
-
-        h4.center {
-            text-align: center;
-            margin: 20px 0 10px;
-            font-size: 15px;
-            border-top: 1px dashed #aaa;
-            padding-top: 10px;
-            color: #333;
-        }
-
-        .total {
-            font-weight: bold;
-            text-align: right;
-            margin-top: 10px;
-            border-top: 1px solid #333;
-            padding-top: 8px;
-            font-size: 15px;
-        }
-
-        .thanks {
-            text-align: center;
-            margin-top: 20px;
-            font-weight: 500;
-            color: #444;
-            font-size: 13px;
-        }
-
-        .barcode {
-            margin-top: 15px;
-            font-family: 'Libre Barcode 39', monospace;
-            font-size: 40px;
-            letter-spacing: 2px;
-            text-align: center;
-        }
-
-        @media print {
-            body {
-                background: none;
-                padding: 0;
-            }
-
-            .receipt-box {
-                box-shadow: none;
-                border: none;
-                padding: 10px;
-            }
-
-            .total {
-                border-top: 1px solid #000;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Receipt</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
+<style>
+ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; background: #f8f8f8; margin: 0; padding: 20px; }
+ .receipt-box { background: #fff; border: 1px solid #ccc; padding: 25px; max-width: 400px; margin: auto; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+ .receipt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+ .header-left { text-align: left; flex: 1; }
+ .header-left h2 { margin: 0; font-size: 20px; color: #333; }
+ .header-left .phone { font-size: 13px; color: #666; }
+ .header-left h3 { margin-top: 10px; font-size: 16px; text-transform: uppercase; color: #444; }
+ .logo { width: 70px; height: auto; margin-left: 10px; }
+ table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+ th, td { padding: 6px 4px; border-bottom: 1px solid #ddd; text-align: left; }
+ th { color: #555; width: 40%; }
+ h4.center { text-align: center; margin: 20px 0 10px; font-size: 15px; border-top: 1px dashed #aaa; padding-top: 10px; color: #333; }
+ .total { font-weight: bold; text-align: right; margin-top: 10px; border-top: 1px solid #333; padding-top: 8px; font-size: 15px; }
+ .thanks { text-align: center; margin-top: 20px; font-weight: 500; color: #444; font-size: 13px; }
+ @media print { body { background: none; padding: 0; } .receipt-box { box-shadow: none; border: none; padding: 10px; } .total { border-top: 1px solid #000; } }
+</style>
 </head>
 <body>
-    <div class="receipt-box">
-        <div class="receipt-header">
-            <div class="header-left">
-                <h2>KAYRON JUNIOR SCHOOL</h2>
-                <div class="phone">Tel: 0711686866 / 0731156576</div>
-                <h3>Official Receipt</h3>
-            </div>
-            <div class="header-right">
-                <img src="../images/school-logo.jpg" alt="School Logo" class="logo" />
-            </div>
-        </div>
+ <div class="receipt-box">
+     <div class="receipt-header">
+         <div class="header-left">
+             <h2>KAYRON JUNIOR SCHOOL</h2>
+             <div class="phone">Tel: 0711686866 / 0731156576</div>
+             <h3>Official Receipt</h3>
+         </div>
+         <div class="header-right">
+             <img src="../images/school-logo.jpg" alt="School Logo" class="logo" />
+         </div>
+     </div>
 
-        <table>
-            <tr><th>Date:</th><td>${data.date.split(' ')[0].replace(/\//g, '-')}</td></tr>
-            <tr><th>Receipt No:</th><td>${receiptNumber}</td></tr>
-            <tr><th>Admission No:</th><td>${data.admission_no}</td></tr>
-            <tr><th>Student Name:</th><td>${data.student_name}</td></tr>
-            <tr><th>Payment Method:</th><td>${data.payment_method}</td></tr>
-        </table>
+     <table>
+         <tr><th>Date:</th><td>${data.date.split(' ')[0].replace(/\//g, '-')}</td></tr>
+         <tr><th>Receipt No:</th><td>${receiptNumber}</td></tr>
+         <tr><th>Admission No:</th><td>${data.admission_no}</td></tr>
+         <tr><th>Student Name:</th><td>${data.student_name}</td></tr>
+         <tr><th>Payment Method:</th><td>${data.payment_method}</td></tr>
+     </table>
 
-        <h4 class="center">Fee Payments</h4>
-        <table>
-            <tr><th>Fee Type</th><th>Amount (KES)</th></tr>
-            ${itemsHTML}
-        </table>
+     <h4 class="center">Fee Payments</h4>
+     <table>
+         <tr><th>Fee Type</th><th>Amount (KES)</th></tr>
+         ${itemsHTML}
+     </table>
 
-        <div class="total">TOTAL: KES ${total.toFixed(2)}</div>
+     <div class="total">TOTAL: KES ${total.toFixed(2)}</div>
 
-        <div class="thanks">
-            Thank you for trusting in our school.<br>
-            Always working to output the best!
-        </div>
-
-    </div>
+     <div class="thanks">
+         Thank you for trusting in our school.<br>
+         Always working to output the best!
+     </div>
+ </div>
 </body>
 </html>
 `);
@@ -472,8 +329,8 @@ $('#student-search').on('input', function () {
             if (Array.isArray(response) && response.length > 0) {
                 response.forEach(function (student) {
                     $('#suggestions').append(`
-                        <div class="suggestion-item" data-name="${student.name}">
-                            ${student.name} - ${student.admission_no}
+                        <div class="suggestion-item" data-adm="${student.admission_no}">
+                            ${student.admission_no} - ${student.name} - ${student.class}
                         </div>
                     `);
                 });
@@ -485,8 +342,8 @@ $('#student-search').on('input', function () {
 });
 
 $('#suggestions').on('click', '.suggestion-item', function () {
-    const name = $(this).data('name');
-    $('#student-search').val(name);
+    const adm = $(this).data('adm');
+    $('#student-search').val(adm);
     $('#suggestions').empty();
     $('form').submit();
 });
@@ -498,11 +355,11 @@ $(document).on('click', function (e) {
 });
 </script>
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () {
     /* ===== Real-time clock ===== */
     function updateClock() {
         const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) { // removed window.innerWidth check to show clock on all devices
+        if (clockElement) {
             const now = new Date();
             const timeString = now.toLocaleTimeString();
             clockElement.textContent = timeString;
@@ -523,6 +380,18 @@ document.addEventListener("DOMContentLoaded", function () {
             });
 
             parent.classList.toggle("open");
+        });
+    });
+
+    /* ===== Keep dropdown open if current page matches a child link ===== */
+    const currentUrl = window.location.pathname.split("/").pop();
+    document.querySelectorAll(".dropdown").forEach(drop => {
+        const links = drop.querySelectorAll("a");
+        links.forEach(link => {
+            const linkUrl = link.getAttribute("href");
+            if (linkUrl && linkUrl.includes(currentUrl)) {
+                drop.classList.add("open");
+            }
         });
     });
 
@@ -550,19 +419,17 @@ document.addEventListener("DOMContentLoaded", function () {
     function resetLogoutTimer() {
         clearTimeout(logoutTimer);
         logoutTimer = setTimeout(() => {
-            // Silent logout - redirect to logout page
             window.location.href = 'logout.php'; // Change to your logout URL
         }, 300000); // 30 seconds
     }
 
-    // Reset timer on user activity
     ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
         document.addEventListener(evt, resetLogoutTimer);
     });
 
-    // Start the timer when page loads
     resetLogoutTimer();
 });
 </script>
+
 </body>
 </html>

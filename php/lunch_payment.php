@@ -333,6 +333,10 @@ if (isset($_GET['ajax'])) {
         $output .= "<div class='summary unpaid'>
             <strong>Current Term Balance as of Today:</strong> KES " . number_format($current_term_balance, 2) . "
         </div>";
+        $output .= "<div class='summary paid'>
+            <strong>Total Paid:</strong> KES " . number_format($term_total_paid, 2) . "
+            <br><strong>Whole Term Balance:</strong> KES " . number_format($term_total_balance, 2) . "
+        </div>";        
     } else {
         $output .= "<div class='summary paid'>
             <strong>Total Paid:</strong> KES " . number_format($term_total_paid, 2) . "
@@ -363,6 +367,7 @@ if (isset($_GET['ajax'])) {
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lunch Payment Tracker</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="../style/style-sheet.css">
@@ -372,11 +377,16 @@ if (isset($_GET['ajax'])) {
     /* Lunch Payment Tracker Styles */
 
 .tracker-title {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-  text-align: center;
-  font-weight: 700;
-  color: #004080;
+    font-size: 1.6rem;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #004085;
+    padding: 10px 15px;
+    background: #e9f2fb;
+    border-left: 5px solid #007bff;
+    border-radius: 6px;
 }
 
 .tracker-container {

@@ -211,20 +211,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 /* Center page title with icon */
 .page-title {
-    display: flex;
-    justify-content: center; /* center horizontally */
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: #1cc88a;
-    margin-bottom: 1.5rem;
-    text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #004b8d;
+  margin-bottom: 25px;
+  text-align: center;
+  border-bottom: 2px solid #004b8d;
+  padding-bottom: 10px;
 }
 
 .page-title i {
+    color: #004b8d;
     font-size: 2rem;
-    color: #4e73df;
+    vertical-align: middle;
+    margin-right: 0.5rem;
 }
 .add-success-message {
     background-color: #d4edda;

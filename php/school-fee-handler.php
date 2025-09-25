@@ -11,14 +11,27 @@ $prefill_name = $_GET['student_name'] ?? '';
 
 $DAILY_FEE   = 70;
 $VALID_DAYS  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-$FEE_RULES   = [
+$FEE_RULES = [
     "Admission"    => 1000,
     "Activity"     => 100,
-    "Exam"         => 100,
     "Interview"    => 200,
     "Prize Giving" => 500,
-    "Graduation"   => 1500
+    "Graduation"   => 1500,
+    "Exam"         => [
+        "babyclass" => 100,
+        "intermediate" => 100,
+        "pp1"       => 100,
+        "pp2"       => 100,
+        "grade1"   => 100,
+        "grade2"   => 100,
+        "grade3"   => 150,
+        "grade4"   => 150,
+        "grade5"   => 150,
+        "grade6"   => 150,
+
+    ]
 ];
+
 
 // ============================
 // HANDLE PAYMENT (POST request)
@@ -267,21 +280,38 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // ----------------------------------------------------
         $current_term_enum = "term" . $current_term['term_number']; // Convert to ENUM-compatible value
 
+        // === Helper: Prepare & check SQL ===
+        function safe_prepare($conn, $query) {
+            $stmt = $conn->prepare($query);
+            if (!$stmt) {
+                throw new Exception("Prepare failed: " . $conn->error);
+            }
+            return $stmt;
+        }
+
+        // === Process Other Fees ===
         foreach ($others_fees as $fee_type => $amount) {
             $amount = floatval($amount);
             if ($amount <= 0 || !isset($FEE_RULES[$fee_type])) continue;
 
-            $max_allowed = $FEE_RULES[$fee_type];
+            $max_allowed = $fee_type === 'Exam' && is_array($FEE_RULES['Exam'])
+                ? ($FEE_RULES['Exam'][$class] ?? 150)
+                : $FEE_RULES[$fee_type];
 
-            // === ADMISSION / INTERVIEW: One-time payment checks with alerts ===
-            if (in_array($fee_type, ["Admission", "Interview"])) {
-                $stmt = $conn->prepare("
-                    SELECT SUM(ot.amount_paid) as total 
+            // === One-time fee checks (Admission, Interview, Graduation) ===
+            if (in_array($fee_type, ['Admission', 'Interview', 'Graduation'])) {
+                // Graduation only for PP2
+                if ($fee_type === 'Graduation' && stripos($class, 'PP2') === false) {
+                    echo "<script>alert('❌ Graduation fee is only applicable to PP2 students.'); window.history.back();</script>";
+                    exit();
+                }
+
+                $stmt = safe_prepare($conn, "
+                    SELECT SUM(ot.amount_paid) AS total
                     FROM other_transactions ot
                     JOIN others o ON ot.others_id = o.id
                     WHERE o.admission_no=? AND ot.fee_type=? AND ot.status='Completed'
                 ");
-                if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
                 $stmt->bind_param("ss", $admission_no, $fee_type);
                 $stmt->execute();
                 $paid_before = $stmt->get_result()->fetch_assoc()['total'] ?? 0;
@@ -293,74 +323,38 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
 
-            // === GRADUATION: Only for PP2 & check for prior payment ===
-            if ($fee_type === "Graduation") {
-                // Rule: Only PP2 class is allowed
-                if (stripos($class, "PP2") === false) {
-                    echo "<script>alert('❌ Graduation fee is only applicable to PP2 students.'); window.history.back();</script>";
-                    exit();
-                }
-
-                // Check if already paid
-                $stmt = $conn->prepare("
-                    SELECT SUM(ot.amount_paid) as total 
-                    FROM other_transactions ot
-                    JOIN others o ON ot.others_id = o.id
-                    WHERE o.admission_no=? AND ot.fee_type='Graduation' AND ot.status='Completed'
-                ");
-                if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
-                $stmt->bind_param("s", $admission_no);
-                $stmt->execute();
-                $paid_before = $stmt->get_result()->fetch_assoc()['total'] ?? 0;
-                $stmt->close();
-
-                if ($paid_before >= $max_allowed) {
-                    echo "<script>alert('❌ Graduation fee already fully paid.'); window.history.back();</script>";
-                    exit();
-                }
-            }
-
-            // === Step 1: Check if record exists in `others` ===
-            $stmt = $conn->prepare("SELECT id, amount_paid, total_amount FROM others 
-                                    WHERE admission_no=? AND fee_type=? AND term=? LIMIT 1");
-            if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
+            // === Fetch or Create `others` record ===
+            $stmt = safe_prepare($conn, "SELECT id, amount_paid, total_amount FROM others WHERE admission_no=? AND fee_type=? AND term=? LIMIT 1");
             $stmt->bind_param("sss", $admission_no, $fee_type, $current_term_enum);
             $stmt->execute();
-            $result = $stmt->get_result();
-            $existing = $result->fetch_assoc();
+            $existing = $stmt->get_result()->fetch_assoc();
             $stmt->close();
 
             if ($existing) {
-                // === Step 2: Update existing record ===
+                // Update existing record
                 $others_id = $existing['id'];
-                $new_paid = $existing['amount_paid'] + $amount;
-                if ($new_paid > $max_allowed) $new_paid = $max_allowed;
+                $new_paid = min($existing['amount_paid'] + $amount, $max_allowed);
 
-                $stmt = $conn->prepare("UPDATE others 
-                                        SET amount_paid=?, payment_type=?, payment_date=NOW() 
-                                        WHERE id=?");
-                if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
+                $stmt = safe_prepare($conn, "UPDATE others SET amount_paid=?, payment_type=?, payment_date=NOW() WHERE id=?");
                 $stmt->bind_param("dsi", $new_paid, $payment_type, $others_id);
                 $stmt->execute();
                 $stmt->close();
             } else {
-                // === Step 3: Insert new record ===
-                $stmt = $conn->prepare("INSERT INTO others 
+                // Insert new record
+                $stmt = safe_prepare($conn, "INSERT INTO others 
                     (receipt_number, admission_no, name, term, fee_type, total_amount, amount_paid, payment_type) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
                 $stmt->bind_param("sssssdds", $receipt_number, $admission_no, $name, $current_term_enum,
-                                $fee_type, $max_allowed, $amount, $payment_type);
+                    $fee_type, $max_allowed, $amount, $payment_type);
                 $stmt->execute();
                 $others_id = $stmt->insert_id;
                 $stmt->close();
             }
 
-            // === Step 4: Log transaction ===
-            $stmt = $conn->prepare("INSERT INTO other_transactions
-                (others_id, fee_type, amount_paid, payment_type, receipt_number, status)
+            // === Log transaction ===
+            $stmt = safe_prepare($conn, "INSERT INTO other_transactions 
+                (others_id, fee_type, amount_paid, payment_type, receipt_number, status) 
                 VALUES (?, ?, ?, ?, ?, 'Completed')");
-            if (!$stmt) throw new Exception("Prepare failed: " . $conn->error);
             $stmt->bind_param("isdss", $others_id, $fee_type, $amount, $payment_type, $receipt_number);
             $stmt->execute();
             $stmt->close();
@@ -375,8 +369,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $amount_paid = floatval($book_data['amount'] ?? 0);
                 if ($quantity <= 0 || $amount_paid <= 0) continue;
 
-                // Fetch book price & name
-                $stmt = $conn->prepare("SELECT book_name, price FROM book_prices WHERE book_id=?");
+                // Fetch book details
+                $stmt = safe_prepare($conn, "SELECT book_name, price FROM book_prices WHERE book_id=?");
                 $stmt->bind_param("i", $book_id);
                 $stmt->execute();
                 $book_info = $stmt->get_result()->fetch_assoc();
@@ -388,76 +382,56 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $unit_price = $book_info['price'];
                 $total_price = $unit_price * $quantity;
 
-                // Step 1: Fetch any previous unpaid balances for the same book
-                $stmt = $conn->prepare("SELECT id, balance FROM book_purchases 
-                                        WHERE admission_no=? AND book_name=? AND balance > 0 
-                                        ORDER BY id ASC");
+                // Fetch previous unpaid balances
+                $stmt = safe_prepare($conn, "SELECT purchase_id, balance FROM book_purchases 
+                                            WHERE admission_no=? AND book_name=? AND balance > 0 
+                                            ORDER BY purchase_id ASC");
                 $stmt->bind_param("ss", $admission_no, $book_name);
                 $stmt->execute();
                 $old_balance_records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();
 
                 $remaining_payment = $amount_paid;
-                $paid_to_old_balances = 0;
 
-                // Step 2: Settle previous balances
                 foreach ($old_balance_records as $record) {
                     if ($remaining_payment <= 0) break;
 
-                    $old_balance_id = $record['id'];
-                    $old_balance_amount = floatval($record['balance']);
+                    $purchase_id = $record['purchase_id'];
+                    $balance_due = floatval($record['balance']);
+                    $payment_to_old = min($remaining_payment, $balance_due);
+                    $remaining_payment -= $payment_to_old;
 
-                    if ($remaining_payment >= $old_balance_amount) {
-                        // Full payment of old balance
-                        $payment_to_old = $old_balance_amount;
-                        $remaining_payment -= $payment_to_old;
-                    } else {
-                        // Partial payment
-                        $payment_to_old = $remaining_payment;
-                        $remaining_payment = 0;
-                    }
-
-                    $paid_to_old_balances += $payment_to_old;
-
-                    // Update old record
-                    $stmt = $conn->prepare("UPDATE book_purchases 
-                                            SET balance = balance - ?, amount_paid = amount_paid + ? 
-                                            WHERE id = ?");
-                    $stmt->bind_param("ddi", $payment_to_old, $payment_to_old, $old_balance_id);
+                    $stmt = safe_prepare($conn, "UPDATE book_purchases 
+                                                SET balance = balance - ?, amount_paid = amount_paid + ? 
+                                                WHERE purchase_id = ?");
+                    $stmt->bind_param("ddi", $payment_to_old, $payment_to_old, $purchase_id);
                     $stmt->execute();
                     $stmt->close();
                 }
 
-                // Step 3: Only insert new record if some money is left for the new book
                 if ($remaining_payment > 0) {
-                    // Calculate how much of the new book is unpaid
-                    $new_balance = $total_price - $remaining_payment;
-                    if ($new_balance < 0) {
-                        $remaining_payment = $total_price; // Overpaid
-                        $new_balance = 0;
-                    }
+                    $new_balance = max(0, $total_price - $remaining_payment);
+                    $applied_amount = min($total_price, $remaining_payment);
 
-                    // Insert new book purchase record
-                    $stmt = $conn->prepare("INSERT INTO book_purchases 
+                    $stmt = safe_prepare($conn, "INSERT INTO book_purchases 
                         (receipt_number, admission_no, name, book_name, quantity, total_price, amount_paid, balance, payment_type)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->bind_param("ssssiidds", $receipt_number, $admission_no, $name, $book_name, $quantity, 
-                                    $total_price, $remaining_payment, $new_balance, $payment_type);
+                                    $total_price, $applied_amount, $new_balance, $payment_type);
                     $stmt->execute();
                     $stmt->close();
                 }
 
-                // Step 4: Log total amount paid (whether old or new) into purchase_transactions
-                if ($amount_paid > 0) {
-                    $stmt = $conn->prepare("INSERT INTO purchase_transactions
-                        (receipt_number, admission_no, name, total_amount_paid, payment_type)
-                        VALUES (?, ?, ?, ?, ?)");
-                    $stmt->bind_param("sssds", $receipt_number, $admission_no, $name, $amount_paid, $payment_type);
-                    $stmt->execute();
-                    $stmt->close();
-                }
+                // Log transaction
+                $stmt = safe_prepare($conn, "INSERT INTO purchase_transactions 
+                    (receipt_number, admission_no, name, total_amount_paid, payment_type) 
+                    VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssds", $receipt_number, $admission_no, $name, $amount_paid, $payment_type);
+                $stmt->execute();
+                $stmt->close();
             }
         }
+
 
 
 
@@ -485,9 +459,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $total_price = $unit_price * $quantity;
 
                 // Step 1: Get any old uniform balances
-                $stmt = $conn->prepare("SELECT id, balance FROM uniform_purchases 
+                $stmt = $conn->prepare("SELECT purchase_id, balance FROM uniform_purchases 
                                         WHERE admission_no = ? AND uniform_type = ? AND size = ? AND balance > 0 
-                                        ORDER BY id ASC");
+                                        ORDER BY purchase_id ASC");
                 $stmt->bind_param("sss", $admission_no, $uniform_type, $size);
                 $stmt->execute();
                 $old_balance_records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -791,6 +765,17 @@ div[style="total"] {
 
 .btn:hover {
     background-color: #0056b3;
+}
+/* Chrome, Safari, Edge, Opera */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+    -moz-appearance: textfield;
 }
 
 </style>

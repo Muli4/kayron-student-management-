@@ -246,19 +246,19 @@ CREATE TABLE attendance (
     PRIMARY KEY (admission_no, term_number, week_number, day_id)
 );
 
-CREATE TABLE teacher_records(
-    id int(20) NOT NULL PRIMARY KEY,
-    name varchar(20) NOT NULL,
-    gender ENUM('male','female'),
-    tsc varchar(20),
-    code varchar(10) NOT NULL,
-    employment_date date,
-    status enum('active','inactive'),
+CREATE TABLE teacher_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(20) NOT NULL UNIQUE,     -- e.g. TCH-0001-025
+    name VARCHAR(100) NOT NULL,
+    gender ENUM('male','female','other') NOT NULL,
+    national_id VARCHAR(50) NOT NULL UNIQUE,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NULL,              -- optional
+    employment_date DATE NOT NULL,
+    status ENUM('active','inactive') DEFAULT 'active',
     teacher_photo LONGBLOB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-
 
 INSERT INTO `student_records` (`id`, `admission_no`, `birth_cert`, `name`, `dob`, `gender`, `student_photo`, `class`, `term`, `religion`, `guardian`, `phone`, `alt_phone`, `created_at`) VALUES
 (1, 'KJS-0001-016', '', 'Hillian Chiro', '2013-11-08', 'female', NULL, 'grade6', 'term2', 'christian', 'Chiro', '0717397937', NULL, '2016-08-14 04:35:51'),

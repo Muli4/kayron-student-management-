@@ -10,11 +10,14 @@ $limit = 30; // number of students per page
 $page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
-// Add "graduate" to the available classes
-$predefined_classes = [
+// Only active classes by default
+$active_classes = [
     'babyclass','intermediate','PP1','PP2','grade1','grade2',
-    'grade3','grade4','grade5','grade6','graduate'
+    'grade3','grade4','grade5','grade6'
 ];
+
+// Include 'graduate' only for the dropdown
+$predefined_classes = array_merge($active_classes, ['graduate']);
 
 // Filters
 $balance_filter = isset($_GET['balance_filter']) && $_GET['balance_filter'] !== '' ? (float)$_GET['balance_filter'] : 0;
@@ -53,6 +56,7 @@ $totals = [
 // --- Get students
 if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
     if ($class_filter === 'graduate') {
+        // Only show graduates if selected
         $query = "SELECT admission_no, name, 'Graduate' AS class, graduation_date FROM graduated_students";
         if ($search_query !== '') {
             $query .= " WHERE admission_no LIKE ? OR name LIKE ?";
@@ -63,6 +67,7 @@ if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
             $stmt_students->bind_param("ss", $like, $like);
         }
     } else {
+        // Active classes
         $query = "SELECT admission_no, name, class, NULL AS graduation_date FROM student_records WHERE class = ?";
         if ($search_query !== '') {
             $query .= " AND (admission_no LIKE ? OR name LIKE ?)";
@@ -76,13 +81,11 @@ if ($class_filter !== '' && in_array($class_filter, $predefined_classes)) {
         }
     }
 } else {
-    $query = "
-        SELECT admission_no, name, class, NULL AS graduation_date FROM student_records
-        UNION ALL
-        SELECT admission_no, name, 'Graduate' AS class, graduation_date FROM graduated_students
-    ";
+    // Default: show only active classes
+    $query = "SELECT admission_no, name, class, NULL AS graduation_date FROM student_records WHERE class IN ('" . implode("','", $active_classes) . "')";
+    
     if ($search_query !== '') {
-        $query = "SELECT * FROM ($query) AS students WHERE admission_no LIKE ? OR name LIKE ?";
+        $query .= " AND (admission_no LIKE ? OR name LIKE ?)";
         $stmt_students = $conn->prepare($query);
         $like = "%$search_query%";
         $stmt_students->bind_param("ss", $like, $like);
@@ -332,7 +335,12 @@ $conn->close();
 // --- PAGINATION ---
 $total_students = count($students);
 $total_pages = ceil($total_students / $limit);
-$students = array_slice($students, $offset, $limit); // apply pagination
+$print_all = isset($_GET['print_all']) && $_GET['print_all'] == 1;
+
+if (!$print_all) {
+    $students = array_slice($students, $offset, $limit); // only slice for regular page view
+}
+
 ?>
 
 
@@ -340,12 +348,16 @@ $students = array_slice($students, $offset, $limit); // apply pagination
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>:: Kayron | Student Balances</title>
     <link rel="stylesheet" href="../style/style-sheet.css">
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet"/>
     <link rel="icon" type="image/png" href="../images/school-logo.jpg">
-    <style>
-/* Container for the whole view */
+    <!-- SheetJS for Excel Export -->
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<style>
+    /* Container for the whole view */
 .view-container {
     background: #fff;
     padding: 2rem;
@@ -356,16 +368,17 @@ $students = array_slice($students, $offset, $limit); // apply pagination
 }
 
 .view-container h2 {
-    color: #1cc88a;
-    font-weight: 700;
-    font-size: 1.8rem;
-    margin-bottom: 2rem;
-    text-align: center;
-    display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: #004b8d;
+  margin-bottom: 25px;
+  text-align: center;
+  border-bottom: 2px solid #004b8d;
+  padding-bottom: 10px;
 }
 
 .view-container h2 i {
-    color: #1cc88a;
+    color: #004b8d;
     font-size: 2rem;
     vertical-align: middle;
     margin-right: 0.5rem;
@@ -375,10 +388,13 @@ $students = array_slice($students, $offset, $limit); // apply pagination
 #filterForm {
     display: flex;
     gap: 10px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
+    overflow-x: auto;
     margin-bottom: 1.5rem;
+    padding-bottom: 10px;
 }
+
 
 #filterForm label {
     font-weight: 600;
@@ -396,7 +412,7 @@ $students = array_slice($students, $offset, $limit); // apply pagination
     font-size: 1rem;
     outline: none;
     transition: border-color 0.3s ease;
-    min-width: 120px;
+    max-width: 200px;
 }
 
 #filterForm input[type="number"]:focus,
@@ -508,7 +524,6 @@ $students = array_slice($students, $offset, $limit); // apply pagination
 
 /* Responsive tweaks */
 @media (max-width: 768px) {
-    #sidebar { display: none !important; }
     main.content { margin-left: 0 !important; width: 100% !important; padding: 10px; }
     #balancesTable { display: block; width: 100%; overflow-x: auto; white-space: nowrap; }
     form#filterForm { flex-direction: column !important; gap: 15px !important; }
@@ -524,9 +539,8 @@ $students = array_slice($students, $offset, $limit); // apply pagination
     h2 { font-size: 1.4rem; }
     form#filterForm button { font-size: 1.3rem; padding: 8px; }
 }
-</style>
 
-</head>
+</style>
 <body>
 <?php include '../includes/header.php'; ?>
 
@@ -537,6 +551,7 @@ $students = array_slice($students, $offset, $limit); // apply pagination
         <div class="view-container">
             <h2><i class='bx bxs-wallet'></i> Student Balances</h2>
 
+            <!-- Filters -->
             <form method="GET" action="" id="filterForm" style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <label for="search">Search:</label>
                 <input type="text" id="search" name="search" placeholder="Admission No or Name"
@@ -556,16 +571,23 @@ $students = array_slice($students, $offset, $limit); // apply pagination
                     <?php endforeach; ?>
                 </select>
 
-                <button type="button" onclick="printBalances()">
+                <!-- Print -->
+                <button type="button" onclick="window.location='?print_all=1&class_filter=<?= urlencode($class_filter); ?>&search=<?= urlencode($search_query); ?>&balance_filter=<?= urlencode($balance_filter); ?>'">
                     <i class='bx bx-printer' style="font-size: 20px;"></i>
+                </button>
+
+                <!-- Excel -->
+                <button type="button" onclick="exportToExcel()">
+                    <i class='bx bx-file' style="font-size: 20px;"></i>
                 </button>
             </form>
 
+            <!-- Table -->
             <div id="balancesTableContainer">
                 <table id="balancesTable" border="1">
                     <thead>
                         <tr>
-                            <th>#</th> <!-- Row number -->
+                            <th>#</th>
                             <th>Adm</th>
                             <th>Name</th>
                             <th>Class</th>
@@ -581,10 +603,8 @@ $students = array_slice($students, $offset, $limit); // apply pagination
                         <?php if (empty($students)): ?>
                             <tr><td colspan="10">No records found.</td></tr>
                         <?php else: ?>
-                            <?php 
-                                $rowNumber = $offset + 1; // Start number based on pagination
-                                foreach ($students as $student): 
-                            ?>
+                            <?php $rowNumber = $offset + 1; ?>
+                            <?php foreach ($students as $student): ?>
                                 <tr>
                                     <td><?= $rowNumber++; ?></td>
                                     <td><?= htmlspecialchars($student['admission_no']); ?></td>
@@ -608,7 +628,7 @@ $students = array_slice($students, $offset, $limit); // apply pagination
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
-                            <!-- Totals row -->
+                            <!-- Totals -->
                             <tr style="font-weight:bold; background:#f0f0f0;">
                                 <td colspan="4">Totals</td>
                                 <td><?= number_format($totals['school_fees'], 2); ?></td>
@@ -622,6 +642,7 @@ $students = array_slice($students, $offset, $limit); // apply pagination
                     </tbody>
                 </table>
 
+                <!-- Pagination -->
                 <?php if ($total_pages > 1): ?>
                     <div class="pagination" style="margin-top: 1rem; text-align:center;">
                         <?php for ($i = 1; $i <= $total_pages; $i++): ?>
@@ -634,7 +655,6 @@ $students = array_slice($students, $offset, $limit); // apply pagination
                     </div>
                 <?php endif; ?>
             </div>
-
         </div>
     </main>
 </div>
@@ -642,47 +662,45 @@ $students = array_slice($students, $offset, $limit); // apply pagination
 <?php include '../includes/footer.php'; ?>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // ===== Real-time clock =====
-    function updateClock() {
-        const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) {
-            clockElement.textContent = new Date().toLocaleTimeString();
-        }
+    const clockElement = document.getElementById('realTimeClock');
+    if (clockElement) {
+        setInterval(() => clockElement.textContent = new Date().toLocaleTimeString(), 1000);
     }
-    updateClock();
-    setInterval(updateClock, 1000);
 
-    // ===== Dropdowns: only one open on click =====
+    // Handle dropdown toggle
     document.querySelectorAll(".dropdown-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             const parent = btn.parentElement;
+
+            // Close all other dropdowns
             document.querySelectorAll(".dropdown").forEach(drop => {
                 if (drop !== parent) drop.classList.remove("open");
             });
+
+            // Toggle current
             parent.classList.toggle("open");
         });
     });
 
-    // ===== Keep Dropdown Open Based on Current Page =====
+    // Keep only the matching dropdown open based on current URL (strict match)
     const currentUrl = window.location.pathname.split("/").pop();
     document.querySelectorAll(".dropdown").forEach(drop => {
-        const links = drop.querySelectorAll("a");
-        links.forEach(link => {
-            const linkUrl = link.getAttribute("href");
-            if (linkUrl && linkUrl.includes(currentUrl)) {
+        drop.querySelectorAll("a").forEach(link => {
+            const linkUrl = link.getAttribute("href").split("/").pop();
+            if (linkUrl === currentUrl) {
                 drop.classList.add("open");
             }
         });
     });
 
-    // ===== Sidebar toggle for mobile =====
+    // Sidebar toggle
     const sidebar = document.getElementById('sidebar');
     const toggleBtn = document.querySelector('.toggle-btn');
     const overlay = document.createElement('div');
     overlay.classList.add('sidebar-overlay');
     document.body.appendChild(overlay);
 
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn?.addEventListener('click', () => {
         sidebar.classList.toggle('show');
         overlay.classList.toggle('show');
     });
@@ -692,57 +710,85 @@ document.addEventListener("DOMContentLoaded", function () {
         overlay.classList.remove('show');
     });
 
-    // ===== Auto logout after 5 minutes inactivity =====
+    // Auto logout after 5 minutes of inactivity
     let logoutTimer;
-    function resetLogoutTimer() {
+    const resetLogoutTimer = () => {
         clearTimeout(logoutTimer);
-        logoutTimer = setTimeout(() => {
-            window.location.href = 'logout.php';
-        }, 300000); // 5 minutes
-    }
-    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+        logoutTimer = setTimeout(() => window.location.href = 'logout.php', 300000); // 5 mins
+    };
+    ['mousemove','keydown','scroll','touchstart'].forEach(evt => {
         document.addEventListener(evt, resetLogoutTimer);
     });
     resetLogoutTimer();
+
+    // Auto-print balances if URL param is ?print_all=1
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('print_all') === '1') {
+        printBalances();
+    }
 });
 
-// ===== Auto-submit debounce =====
+// Auto-submit debounce
 let typingTimer;
 const debounceDelay = 1500;
 function autoSubmit() {
     clearTimeout(typingTimer);
     typingTimer = setTimeout(() => {
-        document.getElementById('filterForm').submit();
+        document.getElementById('filterForm')?.submit();
     }, debounceDelay);
 }
 
-// ===== Print function with heading, full borders, and popup =====
+// ===== Print balances grouped by class =====
 function printBalances() {
-    // Clone table
-    const table = document.getElementById('balancesTable').cloneNode(true);
+    const table = document.getElementById('balancesTable')?.cloneNode(true);
+    if (!table) return alert('No table found to print.');
 
-    // Remove last column (actions/pay) from header
+    // Remove last column (actions/pay)
     const ths = table.querySelectorAll('thead th');
     if (ths.length > 8) ths[ths.length - 1].remove();
-
-    // Remove last column from each row
     table.querySelectorAll('tbody tr').forEach(row => {
         if (row.children.length > 8) row.removeChild(row.lastElementChild);
     });
 
-    const heading = `
-        <h2 style="text-align:center; color:#1cc88a; font-size:24px; margin-bottom:20px;">
-            <i class="bx bxs-wallet"></i> Student Balances
-        </h2>`;
+    // Remove Totals rows
+    table.querySelectorAll('tbody tr').forEach(row => {
+        if (row.cells[0]?.textContent.trim().toLowerCase() === 'totals') row.remove();
+    });
 
-    // Calculate centered popup position
+    // Group rows by Class (Class column is index 3)
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    const classGroups = {};
+    rows.forEach(row => {
+        const className = (row.cells[3]?.textContent.trim() || 'Unknown Class').toLowerCase();
+        if (!classGroups[className]) classGroups[className] = [];
+        classGroups[className].push(row.outerHTML);
+    });
+
+
+    // Class order: grade6 → grade1 → intermediate → babyclass
+    const classOrder = ['grade6','grade5','grade4','grade3','grade2','grade1','pp2','pp1','intermediate','babyclass'];
+    const sortedClasses = classOrder.filter(c => classGroups[c]);
+
+    // Build HTML per class
+    let tableHTML = '';
+    sortedClasses.forEach(className => {
+        const displayName = className.charAt(0).toUpperCase() + className.slice(1);
+        tableHTML += `
+            <h2 style="text-align:center; color: black; font-size:22px; margin-top:30px;">
+                <i class="bx bxs-wallet"></i> ${displayName} Student Balances
+            </h2>
+            <table style="width:100%; border-collapse:collapse; font-size:0.95rem; margin-bottom:40px;">
+                <thead>${table.querySelector('thead').innerHTML}</thead>
+                <tbody>${classGroups[className].join('')}</tbody>
+            </table>
+        `;
+    });
+
+    // Open print window
     const width = 1000, height = 700;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
-
-    const newWin = window.open(
-        "",
-        "PrintWindow",
+    const newWin = window.open("", "PrintWindow",
         `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`
     );
 
@@ -752,16 +798,17 @@ function printBalances() {
             <title>Student Balances</title>
             <style>
                 body { font-family: Arial, sans-serif; padding: 20px; }
-                table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+                table { width: 100%; border-collapse: collapse; margin-bottom:40px; }
                 th, td { border: 1px solid #333; padding: 0.6rem 0.8rem; text-align: center; }
-                thead { background-color: #4e73df; color: black; }
+                thead { color: black; }
                 tbody tr:nth-child(even) { background-color: #f9f9f9; }
                 tbody tr:hover { background-color: #e6f7f1; }
+                h2 { margin-bottom: 10px; page-break-before: always; }
+                h2:first-of-type { page-break-before: avoid; }
             </style>
         </head>
         <body>
-            ${heading}
-            ${table.outerHTML}
+            ${tableHTML}
         </body>
         </html>
     `);
@@ -769,14 +816,43 @@ function printBalances() {
     newWin.document.close();
     newWin.focus();
     newWin.print();
-
-    newWin.onafterprint = function () {
-        window.location.href = 'view-balances.php';
-    };
+    newWin.onafterprint = () => window.location.href = 'view-balances.php';
 }
 </script>
+<!-- Scripts -->
+<script>
+function exportToExcel() {
+    // Build URL with same filters, but force print_all=1
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set("print_all", "1");
 
+    fetch("view-balances.php?" + urlParams.toString())
+        .then(res => res.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const fullTable = doc.querySelector("#balancesTable");
+
+            if (!fullTable) {
+                alert("Could not fetch full balances table.");
+                return;
+            }
+
+            // Remove Action column before export
+            fullTable.querySelectorAll("tr").forEach(row => {
+                if (row.cells.length > 0) {
+                    row.deleteCell(row.cells.length - 1);
+                }
+            });
+
+            const wb = XLSX.utils.table_to_book(fullTable, { sheet: "Balances" });
+            XLSX.writeFile(wb, "student_balances.xlsx");
+        })
+        .catch(err => {
+            console.error("Export failed:", err);
+            alert("Export failed. Check console.");
+        });
+}
+</script>
 </body>
 </html>
-
-

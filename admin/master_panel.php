@@ -5,11 +5,13 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-include 'db.php'; // Database connection
+include '../php/db.php'; 
 
-// ======== Dashboard Stats ========
-// Total students
-$totalStudents = $boys = $girls = 0;
+// ===== Fetch total students =====
+$totalStudents = 0;
+$boys = 0;
+$girls = 0;
+
 $result = $conn->query("SELECT COUNT(*) AS total, 
                                SUM(CASE WHEN gender = 'Male' THEN 1 ELSE 0 END) AS boys, 
                                SUM(CASE WHEN gender = 'Female' THEN 1 ELSE 0 END) AS girls 
@@ -21,8 +23,11 @@ if ($result) {
     $girls = $row['girls'];
 }
 
-// Total teachers
-$totalTeachers = $maleTeachers = $femaleTeachers = 0;
+// ===== Fetch total teachers =====
+$totalTeachers = 0;
+$maleTeachers = 0;
+$femaleTeachers = 0;
+
 $result = $conn->query("SELECT COUNT(*) AS total, 
                                SUM(CASE WHEN gender = 'Male' THEN 1 ELSE 0 END) AS maleTeachers, 
                                SUM(CASE WHEN gender = 'Female' THEN 1 ELSE 0 END) AS femaleTeachers 
@@ -34,7 +39,7 @@ if ($result) {
     $femaleTeachers = $row['femaleTeachers'];
 }
 
-// Total classes
+// ===== Fetch total unique classes =====
 $totalClasses = 0;
 $result = $conn->query("SELECT COUNT(DISTINCT class) AS total FROM student_records");
 if ($result) {
@@ -42,6 +47,13 @@ if ($result) {
     $totalClasses = $row['total'];
 }
 
+// ===== Fetch total system users (from login/accounts table if exists) =====
+$totalUsers = 0;
+$result = $conn->query("SELECT COUNT(*) AS total FROM administration"); // <-- adjust table name
+if ($result) {
+    $row = $result->fetch_assoc();
+    $totalUsers = $row['total'];
+}
 // ======== Current Term & Week Calculation ========
 $current_date = date('Y-m-d');
 $stmt = $conn->prepare("
@@ -138,21 +150,38 @@ for ($i = 1; $i <= $weekNumber; $i++) {
     // Total Gross
     $totalGrossWeeks[] = $schoolFeesWeeks[$i-1] + $lunchFeesWeeks[$i-1] + $graduationWeeks[$i-1] + $otherWeeks[$i-1] + $booksUniformWeeks[$i-1];
 }
+// ===== Database Storage Tracker =====
+$dbName = 'school_database'; // <-- change to your actual DB name
+$dbSizeMB = 0;
+
+// Query total data + index size
+$sql = "SELECT ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS size_mb
+        FROM information_schema.tables
+        WHERE table_schema = '$dbName'";
+$result = $conn->query($sql);
+if ($result) {
+    $row = $result->fetch_assoc();
+    
+    // Add estimated overhead for internal MySQL/InnoDB usage
+    $estimatedOverhead = 1.21; // MB — Adjust based on what Hostjaer reports
+    $dbSizeMB = round($row['size_mb'] + $estimatedOverhead, 2);
+}
+
+$storageLimitMB = 2990; // 2.99 GB = 2990 MB
+$percentUsed = min(100, round(($dbSizeMB / $storageLimitMB) * 100, 1));
 
 $conn->close();
 ?>
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard</title>
-<link rel="stylesheet" href="../style/style-sheet.css">
-<link rel="website icon" type="png" href="../images/school-logo.jpg">
-<link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master-Admin Panel</title>
+    <link rel="stylesheet" href="../style/style-sheet.css">
+    <link rel="website icon" type="png" href="../images/school-logo.jpg">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 /* ===== DASHBOARD CARDS ===== */
 .dashboard-data {
@@ -189,6 +218,27 @@ $conn->close();
     margin: 0;
 }
 
+/* ===== DB STORAGE CARD ===== */
+.data-container.db-storage {
+    grid-column: span 2; /* takes 2 columns on desktop */
+    text-align: left; /* left align content for better look */
+}
+.data-container.db-storage h3 {
+    text-align: center;
+}
+.db-progress {
+    background: #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+    height: 18px;
+    margin: 10px 0;
+}
+.db-bar {
+    background: #ff6b6b;
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
 /* ===== CHARTS ===== */
 .charts-container {
     display: grid;
@@ -219,6 +269,9 @@ canvas.chart {
     .dashboard-data {
         grid-template-columns: 1fr; /* stack cards on mobile */
     }
+    .data-container.db-storage {
+        grid-column: span 1; /* full width on small screens */
+    }
     .charts-container {
         grid-template-columns: 1fr; /* one chart per row */
     }
@@ -231,34 +284,36 @@ canvas.chart {
 
 </head>
 <body>
-
 <?php include '../includes/header.php'; ?>
-<div class="dashboard-container">
-<?php include '../includes/sidebar.php'; ?>
-<main class="content">
-
-<div class="dashboard-data">
-    <div class="data-container"><h3>Total Students</h3><p><?= $totalStudents ?></p></div>
-    <div class="data-container"><h3>Boys : Girls</h3><p><?= $boys . " : " . $girls ?></p></div>
-    <div class="data-container"><h3>Total Teachers</h3><p><?= $totalTeachers ?></p></div>
-    <div class="data-container"><h3>Male : Female</h3><p><?= $maleTeachers . " : " . $femaleTeachers ?></p></div>
-    <div class="data-container"><h3>Total Classes</h3><p><?= $totalClasses ?></p></div>
-</div>
-
-<div class="charts-container">
-    <canvas id="schoolFeesChart" class="chart"></canvas>
-    <canvas id="lunchFeesChart" class="chart"></canvas>
-    <canvas id="graduationChart" class="chart"></canvas>
-    <canvas id="otherFeesChart" class="chart"></canvas>
-    <canvas id="booksUniformChart" class="chart"></canvas>
-    <canvas id="totalGrossChart" class="chart"></canvas>
-</div>
-
-</main>
-</div>
-
+    <div class="dashboar-container">
+        <?php include '../includes/admin-sidebar.php'; ?>
+        <main class="content">
+            <div class="dashboard-data">
+                <div class="data-container"><h3>Total Students</h3><p><?= $totalStudents ?></p></div>
+                <div class="data-container"><h3>Boys : Girls</h3><p><?= $boys . " : " . $girls ?></p></div>
+                <div class="data-container"><h3>Total Teachers</h3><p><?= $totalTeachers ?></p></div>
+                <div class="data-container"><h3>Male : Female</h3><p><?= $maleTeachers . " : " . $femaleTeachers ?></p></div>
+                <div class="data-container"><h3>Total Classes</h3><p><?= $totalClasses ?></p></div>
+                <div class="data-container"><h3>Total Users</h3><p><?= $totalUsers ?></p></div>
+                <div class="data-container db-storage">
+                    <h3>DB Storage</h3>
+                    <div class="db-progress">
+                        <div class="db-bar" style="width:<?= $percentUsed ?>%;"></div>
+                    </div>
+                    <p><?= $dbSizeMB ?> MB / 2.99 GB</p>
+                </div>
+            </div>
+            <div class="charts-container">
+                <canvas id="schoolFeesChart" class="chart"></canvas>
+                <canvas id="lunchFeesChart" class="chart"></canvas>
+                <canvas id="graduationChart" class="chart"></canvas>
+                <canvas id="otherFeesChart" class="chart"></canvas>
+                <canvas id="booksUniformChart" class="chart"></canvas>
+                <canvas id="totalGrossChart" class="chart"></canvas>
+            </div>
+        </main>
+    </div>
 <?php include '../includes/footer.php'; ?>
-
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const weekLabels = [<?php for($i=1;$i<=$weekNumber;$i++){ echo "'Week $i'"; if($i!=$weekNumber) echo ",";} ?>];
@@ -323,79 +378,74 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-    /* ===== Real-time clock ===== */
-    function updateClock() {
-        const clockElement = document.getElementById('realTimeClock');
-        if (clockElement) {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
-            clockElement.textContent = timeString;
+        /* ===== Real-time clock ===== */
+        function updateClock() {
+            const clockElement = document.getElementById('realTimeClock');
+            if (clockElement) {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString();
+                clockElement.textContent = timeString;
+            }
         }
-    }
-    updateClock(); 
-    setInterval(updateClock, 1000);
+        updateClock(); 
+        setInterval(updateClock, 1000);
 
-    /* ===== Dropdowns: only one open ===== */
-    document.querySelectorAll(".dropdown-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const parent = btn.parentElement;
+        /* ===== Dropdowns: only one open ===== */
+        document.querySelectorAll(".dropdown-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const parent = btn.parentElement;
+                document.querySelectorAll(".dropdown").forEach(drop => {
+                    if (drop !== parent) {
+                        drop.classList.remove("open");
+                    }
+                });
+                parent.classList.toggle("open");
+            });
+        });
 
-            document.querySelectorAll(".dropdown").forEach(drop => {
-                if (drop !== parent) {
-                    drop.classList.remove("open");
+        /* ===== Keep dropdown open if current page matches a child link ===== */
+        const currentUrl = window.location.pathname.split("/").pop();
+        document.querySelectorAll(".dropdown").forEach(drop => {
+            const links = drop.querySelectorAll("a");
+            links.forEach(link => {
+                const linkUrl = link.getAttribute("href");
+                if (linkUrl && linkUrl.includes(currentUrl)) {
+                    drop.classList.add("open");
                 }
             });
-
-            parent.classList.toggle("open");
         });
-    });
 
-    /* ===== Keep dropdown open if current page matches a child link ===== */
-    const currentUrl = window.location.pathname.split("/").pop();
-    document.querySelectorAll(".dropdown").forEach(drop => {
-        const links = drop.querySelectorAll("a");
-        links.forEach(link => {
-            const linkUrl = link.getAttribute("href");
-            if (linkUrl && linkUrl.includes(currentUrl)) {
-                drop.classList.add("open");
-            }
+        /* ===== Sidebar toggle for mobile ===== */
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.querySelector('.toggle-btn');
+        const overlay = document.createElement('div');
+        overlay.classList.add('sidebar-overlay');
+        document.body.appendChild(overlay);
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('show');
+            overlay.classList.toggle('show');
         });
+
+        /* ===== Close sidebar on outside click ===== */
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+        });
+
+        /* ===== Auto logout after 5 mins inactivity ===== */
+        let logoutTimer;
+        function resetLogoutTimer() {
+            clearTimeout(logoutTimer);
+            logoutTimer = setTimeout(() => {
+                window.location.href = '../php/logout.php';
+            }, 300000); // 5 minutes
+        }
+        ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+            document.addEventListener(evt, resetLogoutTimer);
+        });
+        resetLogoutTimer();
     });
-
-    /* ===== Sidebar toggle for mobile ===== */
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.querySelector('.toggle-btn');
-    const overlay = document.createElement('div');
-    overlay.classList.add('sidebar-overlay');
-    document.body.appendChild(overlay);
-
-    toggleBtn.addEventListener('click', () => {
-        sidebar.classList.toggle('show');
-        overlay.classList.toggle('show');
-    });
-
-    /* ===== Close sidebar on outside click ===== */
-    overlay.addEventListener('click', () => {
-        sidebar.classList.remove('show');
-        overlay.classList.remove('show');
-    });
-
-    /* ===== Auto logout after 30 seconds inactivity (no alert) ===== */
-    let logoutTimer;
-
-    function resetLogoutTimer() {
-        clearTimeout(logoutTimer);
-        logoutTimer = setTimeout(() => {
-            window.location.href = 'logout.php'; // Change to your logout URL
-        }, 300000); // 30 seconds
-    }
-
-    ['mousemove', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
-        document.addEventListener(evt, resetLogoutTimer);
-    });
-
-    resetLogoutTimer();
-});
 </script>
 </body>
 </html>

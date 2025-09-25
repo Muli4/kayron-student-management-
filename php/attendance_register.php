@@ -1,4 +1,12 @@
 <?php
+// attendance_register.php (smart future week or carry forward)
+
+// Debug logging (disable display_errors on production)
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php-error.log');
+
 session_start();
 if (!isset($_SESSION['username'])) {
     header("Location: ../index.php");
@@ -6,17 +14,79 @@ if (!isset($_SESSION['username'])) {
 }
 include '../php/db.php';
 
-// Define class options and selected values early
+// Helper logger
+function dbg_log($message, $conn = null) {
+    $prefix = '[' . date('Y-m-d H:i:s') . '] ';
+    if ($conn && $conn instanceof mysqli && $conn->error) {
+        $message .= " | MySQL error: " . $conn->error;
+    }
+    error_log($prefix . $message . PHP_EOL, 3, __DIR__ . '/php-error.log');
+}
+
+// Validate DB connection
+if (!isset($conn) || !($conn instanceof mysqli)) {
+    dbg_log("Database connection missing or invalid.");
+    die("Database connection error. Check php-error.log for details.");
+}
+
+// Classes
 $classes = ['babyclass','intermediate','PP1','PP2','grade1','grade2','grade3','grade4','grade5','grade6'];
 $selected_class = $_GET['class'] ?? '';
 $selected_day_id = $_GET['day_id'] ?? null;
 
+// ===================== AUTO-SELECT CURRENT DAY =====================
+$weekendFlag = false;
+$today = date('Y-m-d');
+$todayWeekday = date('N'); // 1=Mon .. 7=Sun
+$default_day_id = null;
+
+if (!$selected_day_id) {
+    if ($todayWeekday == 6 || $todayWeekday == 7) {
+        $weekendFlag = true;
+    } else {
+        $sql = "SELECT * FROM terms WHERE start_date <= '$today' AND end_date >= '$today' ORDER BY id DESC LIMIT 1";
+        $termRes = $conn->query($sql);
+        if ($termRes && $termRes->num_rows > 0) {
+            $term = $termRes->fetch_assoc();
+
+            $daysSinceStart = floor((strtotime($today) - strtotime($term['start_date'])) / (60*60*24));
+            $currentWeek = floor($daysSinceStart / 7) + 1;
+            $dayName = date('l');
+
+            $dsql = "SELECT d.id 
+                     FROM days d
+                     JOIN weeks w ON d.week_id = w.id
+                     WHERE w.term_id = {$term['id']} 
+                       AND w.week_number = $currentWeek
+                       AND d.day_name = '" . $conn->real_escape_string($dayName) . "'
+                     LIMIT 1";
+            $dayRes = $conn->query($dsql);
+            if ($dayRes && $dayRes->num_rows > 0) {
+                $default_day_id = $dayRes->fetch_assoc()['id'];
+            }
+        }
+    }
+
+    if (!$default_day_id && !$weekendFlag) {
+        $lastDayRes = $conn->query("SELECT id FROM days ORDER BY id DESC LIMIT 1");
+        if ($lastDayRes && $lastDayRes->num_rows > 0) {
+            $default_day_id = $lastDayRes->fetch_assoc()['id'];
+        }
+    }
+
+    $selected_day_id = $default_day_id;
+}
+
 // ===================== SAVE ATTENDANCE =====================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if ($weekendFlag) {
+        echo "<script>alert('Today is Weekend. Attendance not recorded.'); window.history.back();</script>";
+        exit;
+    }
+
     $day_id = intval($_POST['day_id']);
     $attendance = $_POST['attendance'] ?? [];
 
-    // Fetch day details
     $dayQuery = $conn->prepare("
         SELECT d.day_name, w.week_number, t.term_number, t.id as term_id, t.start_date, t.end_date
         FROM days d
@@ -41,11 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $term_start = $dayData['start_date'];
     $term_end = $dayData['end_date'];
 
-    // Mapping order of weekdays
     $daysOrder = ['monday','tuesday','wednesday','thursday','friday'];
 
     foreach ($attendance as $admission_no => $status) {
-        // Insert or update attendance
+        // Insert/update attendance
         $stmt = $conn->prepare("
             INSERT INTO attendance (admission_no, term_number, week_number, day_id, day_name, status)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -54,39 +123,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt->bind_param("siiiss", $admission_no, $term_number, $week_number, $day_id, $day_name, $status);
         $stmt->execute();
 
-        // ===================== Handle lunch fees when absent =====================
+        // Handle lunch fees
         if ($status === "Absent") {
-            $dayColumn = strtolower($day_name); // e.g. Tuesday -> tuesday
+            $dayColumn = strtolower($day_name);
 
-            // Fetch lunch fees row for current week
-            $lq = $conn->prepare("
-                SELECT * FROM lunch_fees 
-                WHERE admission_no=? AND term_id=? AND week_number=? LIMIT 1
-            ");
+            $lq = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no=? AND term_id=? AND week_number=? LIMIT 1");
             $lq->bind_param("sii", $admission_no, $term_id, $week_number);
             $lq->execute();
             $lres = $lq->get_result();
 
             if ($lrow = $lres->fetch_assoc()) {
-                $currentAmt = $lrow[$dayColumn];
+                $currentAmt = isset($lrow[$dayColumn]) ? floatval($lrow[$dayColumn]) : 0.0;
                 if ($currentAmt > 0) {
-                    // Set absent day fee to zero
-                    $update = $conn->prepare("UPDATE lunch_fees SET $dayColumn=0 WHERE id=?");
+                    // Zero out today's column
+                    $update = $conn->prepare("UPDATE lunch_fees SET `$dayColumn`=0 WHERE id=?");
                     $update->bind_param("i", $lrow['id']);
                     $update->execute();
 
                     $amountToMove = $currentAmt;
 
-                    // 1️⃣ Try reallocating within SAME week, days after current day
+                    // Reallocate within SAME week only
                     $dayIndex = array_search($dayColumn, $daysOrder);
+                    if ($dayIndex === false) $dayIndex = 0;
                     for ($i = $dayIndex + 1; $i < count($daysOrder) && $amountToMove > 0; $i++) {
                         $d = $daysOrder[$i];
-                        if ($lrow[$d] < 70) {
-                            $needed = 70 - $lrow[$d];
+                        $existingVal = isset($lrow[$d]) ? floatval($lrow[$d]) : 0.0;
+                        if ($existingVal < 70) {
+                            $needed = 70 - $existingVal;
                             $alloc = min($needed, $amountToMove);
-                            $newVal = $lrow[$d] + $alloc;
+                            $newVal = $existingVal + $alloc;
 
-                            $upd = $conn->prepare("UPDATE lunch_fees SET $d=? WHERE id=?");
+                            $upd = $conn->prepare("UPDATE lunch_fees SET `$d`=? WHERE id=?");
                             $upd->bind_param("di", $newVal, $lrow['id']);
                             $upd->execute();
 
@@ -95,92 +162,88 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         }
                     }
 
-                    // 2️⃣ If still balance, push into FUTURE weeks of same term
-                    $futureWeek = $week_number + 1;
-                    while ($amountToMove > 0) {
-                        $fq = $conn->prepare("
-                            SELECT * FROM lunch_fees 
-                            WHERE admission_no=? AND term_id=? AND week_number=? LIMIT 1
-                        ");
-                        $fq->bind_param("sii", $admission_no, $term_id, $futureWeek);
-                        $fq->execute();
-                        $fres = $fq->get_result();
+                    // If still remaining → try pushing to future weeks within term
+                    if ($amountToMove > 0) {
+                        $futureWeek = $week_number + 1;
+                        $moved = false;
 
-                        if ($frow = $fres->fetch_assoc()) {
-                            // Allocate into this future week
-                            foreach ($daysOrder as $d) {
-                                if ($amountToMove <= 0) break;
-                                if ($frow[$d] < 70) {
-                                    $needed = 70 - $frow[$d];
-                                    $alloc = min($needed, $amountToMove);
-                                    $newVal = $frow[$d] + $alloc;
+                        while ($amountToMove > 0) {
+                            // Calculate the start date of that future week
+                            $futureStart = date('Y-m-d', strtotime($term_start . " +" . ($futureWeek - 1) . " week"));
 
-                                    $upd = $conn->prepare("UPDATE lunch_fees SET $d=?, total_paid=total_paid+?, balance=balance-? WHERE id=?");
-                                    $upd->bind_param("diii", $newVal, $alloc, $alloc, $frow['id']);
-                                    $upd->execute();
-
-                                    $amountToMove -= $alloc;
-                                }
-                            }
-                        } else {
-                            // No future week row → try to create one if term not ended
-                            $weekStartDate = date('Y-m-d', strtotime($term_start . " +".($futureWeek-1)." week"));
-                            if ($weekStartDate <= $term_end) {
-                                // Create new week
-                                $conn->query("INSERT INTO weeks (term_id, week_number) VALUES ($term_id, $futureWeek)");
-                                $newWeekId = $conn->insert_id;
-
-                                // Create 5 days (Mon-Fri)
-                                foreach ($daysOrder as $dname) {
-                                    $conn->query("INSERT INTO days (week_id, day_name) VALUES ($newWeekId, '".ucfirst($dname)."')");
-                                }
-
-                                // Create lunch_fees row for student
-                                $conn->query("
-                                    INSERT INTO lunch_fees (admission_no, term_id, week_number, total_paid, balance, total_amount)
-                                    VALUES ('$admission_no', $term_id, $futureWeek, 0, 350, 350)
-                                ");
-
-                                // Retry this week allocation
-                                continue;
-                            } else {
-                                // Term ended, stop
+                            if ($futureStart > $term_end) {
+                                // No more weeks → store carry forward
+                                $newCarry = (isset($lrow['carry_forward']) ? floatval($lrow['carry_forward']) : 0.0) + $amountToMove;
+                                $upd = $conn->prepare("UPDATE lunch_fees SET carry_forward=? WHERE id=?");
+                                $upd->bind_param("di", $newCarry, $lrow['id']);
+                                $upd->execute();
+                                dbg_log("Carried forward $amountToMove for $admission_no since term ended");
                                 break;
                             }
+
+                            // Check if lunch_fees exists for this week
+                            $fq = $conn->prepare("SELECT * FROM lunch_fees WHERE admission_no=? AND term_id=? AND week_number=? LIMIT 1");
+                            $fq->bind_param("sii", $admission_no, $term_id, $futureWeek);
+                            $fq->execute();
+                            $fres = $fq->get_result();
+
+                            if ($frow = $fres->fetch_assoc()) {
+                                // Allocate into that week
+                                foreach ($daysOrder as $d) {
+                                    if ($amountToMove <= 0) break;
+                                    $fExisting = isset($frow[$d]) ? floatval($frow[$d]) : 0.0;
+                                    if ($fExisting < 70) {
+                                        $needed = 70 - $fExisting;
+                                        $alloc = min($needed, $amountToMove);
+                                        $newVal = $fExisting + $alloc;
+
+                                        $upd = $conn->prepare("UPDATE lunch_fees SET `$d`=?, total_paid=total_paid+?, balance=balance-? WHERE id=?");
+                                        $upd->bind_param("diii", $newVal, $alloc, $alloc, $frow['id']);
+                                        $upd->execute();
+
+                                        $amountToMove -= $alloc;
+                                        $moved = true;
+                                    }
+                                }
+                            } else {
+                                // Create a new lunch_fees record for this week
+                                $insLunch = $conn->prepare("
+                                    INSERT INTO lunch_fees (admission_no, term_id, week_number, total_paid, balance, total_amount)
+                                    VALUES (?, ?, ?, 0, 350, 350)
+                                ");
+                                $insLunch->bind_param("sii", $admission_no, $term_id, $futureWeek);
+                                $insLunch->execute();
+                                dbg_log("Created lunch_fees record for $admission_no week $futureWeek");
+
+                                // Next loop will catch this new record
+                                continue;
+                            }
+
+                            $futureWeek++;
                         }
-
-                        $futureWeek++;
-                    }
-
-                    // 3️⃣ If still balance left → add to carry_forward in current week
-                    if ($amountToMove > 0) {
-                        $newCarry = $lrow['carry_forward'] + $amountToMove;
-                        $upd = $conn->prepare("UPDATE lunch_fees SET carry_forward=? WHERE id=?");
-                        $upd->bind_param("di", $newCarry, $lrow['id']);
-                        $upd->execute();
                     }
                 }
             }
         }
     }
 
-    echo "<script>alert('Attendance Saved Successfully!'); window.location.href='attendance_register.php?class={$_POST['class']}&day_id={$day_id}';</script>";
+    echo "<script>alert('Attendance Saved Successfully!'); window.location.href='attendance_register.php?class=" . urlencode($_POST['class']) . "&day_id={$day_id}';</script>";
     exit;
 }
 
-// ===================== FETCH DATA =====================
+// ===================== FETCH DAYS =====================
 $daysQuery = "
     SELECT d.id as day_id, d.day_name, w.week_number, t.term_number, t.year
     FROM days d
     JOIN weeks w ON d.week_id = w.id
     JOIN terms t ON w.term_id = t.id
-    ORDER BY t.year DESC, t.term_number DESC, w.week_number DESC, 
+    ORDER BY t.year DESC, t.term_number DESC, w.week_number DESC,
              FIELD(d.day_name,'Monday','Tuesday','Wednesday','Thursday','Friday') DESC
 ";
 $daysRes = $conn->query($daysQuery);
-$days = $daysRes->fetch_all(MYSQLI_ASSOC);
-?>
+$days = $daysRes ? $daysRes->fetch_all(MYSQLI_ASSOC) : [];
 
+?>
 
 
 
@@ -188,6 +251,7 @@ $days = $daysRes->fetch_all(MYSQLI_ASSOC);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Attendance Register</title>
     <link rel="stylesheet" href="../style/style-sheet.css">
     <link rel="website icon" type="png" href="../images/school-logo.jpg">
@@ -353,13 +417,52 @@ $days = $daysRes->fetch_all(MYSQLI_ASSOC);
 
                 <label>Select Day:</label>
                 <select name="day_id" onchange="this.form.submit()">
-                    <?php foreach($days as $d): 
-                        $label = "Term {$d['term_number']} ({$d['year']}) - Week {$d['week_number']} - {$d['day_name']}";
-                    ?>
-                        <option value="<?= $d['day_id'] ?>" <?= $selected_day_id == $d['day_id'] ? 'selected' : '' ?>>
-                            <?= $label ?>
+
+                    <?php if ($weekendFlag): ?>
+                        <option value="" selected disabled style="color:red;">
+                            Today is Weekend (<?= date('l') ?>)
                         </option>
-                    <?php endforeach; ?>
+                    <?php endif; ?>
+
+                    <?php
+                    // Fetch current term
+                    $today = date('Y-m-d');
+                    $termRes = $conn->query("
+                        SELECT * FROM terms
+                        WHERE start_date <= '$today' AND end_date >= '$today'
+                        ORDER BY id DESC LIMIT 1
+                    ");
+                    if ($termRes && $termRes->num_rows > 0) {
+                        $currentTerm = $termRes->fetch_assoc();
+                        $termId = $currentTerm['id'];
+                        $termNumber = $currentTerm['term_number'];
+                        $termYear = $currentTerm['year'];
+
+                        // Fetch all weeks and days for this term
+                        $weekDaysRes = $conn->query("
+                            SELECT w.week_number, d.id as day_id, d.day_name
+                            FROM weeks w
+                            JOIN days d ON d.week_id = w.id
+                            WHERE w.term_id = $termId
+                            ORDER BY w.week_number ASC,
+                                    FIELD(d.day_name,'Monday','Tuesday','Wednesday','Thursday','Friday') ASC
+                        ");
+
+                        $weeks = [];
+                        while ($row = $weekDaysRes->fetch_assoc()) {
+                            $weeks[$row['week_number']][] = $row;
+                        }
+
+                        foreach ($weeks as $weekNum => $daysInWeek) {
+                            echo "<optgroup label='Term $termNumber - Week $weekNum'>";
+                            foreach ($daysInWeek as $d) {
+                                $selected = (!$weekendFlag && $selected_day_id == $d['day_id']) ? 'selected' : '';
+                                echo "<option value='{$d['day_id']}' $selected>{$d['day_name']}</option>";
+                            }
+                            echo "</optgroup>";
+                        }
+                    }
+                    ?>
                 </select>
             </form>
 
@@ -447,7 +550,6 @@ $days = $daysRes->fetch_all(MYSQLI_ASSOC);
     </main>
 </div>
 
-<?php include '../includes/footer.php'; ?>
 <script>
   if (window.history.replaceState) {
     window.history.replaceState(null, null, window.location.href);
