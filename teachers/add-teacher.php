@@ -22,14 +22,15 @@ $next_teacher_code = 'TCH-' . str_pad($next_num, 4, '0', STR_PAD_LEFT) . '-' . $
 
 // ================== Handle Form Submission ==================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name        = trim($_POST['name'] ?? '');
-    $gender      = $_POST['gender'] ?? '';
-    $national_id = trim($_POST['national_id'] ?? '');
-    $phone       = trim($_POST['phone'] ?? '');
-    $email       = trim($_POST['email'] ?? ''); // optional
-    $status      = $_POST['status'] ?? 'active';
+    $name            = trim($_POST['name'] ?? '');
+    $gender          = $_POST['gender'] ?? '';
+    $national_id     = trim($_POST['national_id'] ?? '');
+    $phone           = trim($_POST['phone'] ?? '');
+    $email           = trim($_POST['email'] ?? ''); // optional
+    $tsc_no          = trim($_POST['tsc_no'] ?? ''); // new field
+    $status          = $_POST['status'] ?? 'active';
     $employment_date = !empty($_POST['employment_date']) ? $_POST['employment_date'] : date('Y-m-d');
-    $code = $next_teacher_code;
+    $code            = $next_teacher_code;
 
     // Validate required inputs
     if (empty($name) || empty($gender) || empty($national_id) || empty($phone)) {
@@ -44,27 +45,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $teacher_photo = file_get_contents($_FILES['teacher_photo']['tmp_name']);
     }
 
-    // Insert into DB
+    // Insert into DB (now includes tsc_no)
     $stmt = $conn->prepare("INSERT INTO teacher_records 
-        (name, gender, national_id, phone, email, code, employment_date, status, teacher_photo) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        (name, gender, tsc_no, national_id, phone, email, code, employment_date, status, teacher_photo) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $null = null;
     $stmt->bind_param(
-        "sssssssss",
-        $name,
-        $gender,
-        $national_id,
-        $phone,
-        $email,
-        $code,
-        $employment_date,
-        $status,
-        $null
+        "ssssssssss",
+        $name,             // 1. name
+        $gender,           // 2. gender
+        $tsc_no,           // 3. tsc_no ✅
+        $national_id,      // 4. national_id
+        $phone,            // 5. phone
+        $email,            // 6. email
+        $code,             // 7. code
+        $employment_date,  // 8. employment_date
+        $status,           // 9. status
+        $null              // 10. teacher_photo (placeholder, real data sent below)
     );
 
+    // Send image data if exists
     if ($teacher_photo !== null) {
-        $stmt->send_long_data(8, $teacher_photo);
+        $stmt->send_long_data(9, $teacher_photo); // index 9 = 10th parameter
     }
 
     if ($stmt->execute()) {
@@ -78,7 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 ?>
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -129,9 +131,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 .add-success-message { background-color: #d4edda; color: #155724; border: 1.5px solid #c3e6cb; padding: 10px 15px; border-radius: 6px; margin-bottom: 1rem; font-weight: 600; text-align: center; }
 .add-error-message { background-color: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; padding: 10px 15px; border-radius: 6px; margin-bottom: 1rem; font-weight: 600; text-align: center; }
 @media (max-width: 600px) { .add-teacher { flex-direction: column; } .form-group { flex: 1 1 100%; } }
+/* Page Loader with Colored Dots */
+#page-loader {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+#page-loader span{
+    font-weight: bold;
+}
+.loader .dot {
+  width: 18px;
+  height: 18px;
+  margin: 0 6px;
+  border-radius: 50%;
+  animation: bounce 1.2s infinite ease-in-out;
+}
+
+.loader .dot.red { background-color: #e74c3c; animation-delay: 0s; }
+.loader .dot.green { background-color: #1cc88a; animation-delay: 0.2s; }
+.loader .dot.blue { background-color: #4e73df; animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 </style>
 </head>
 <body>
+<div id="page-loader" class="loader">
+  <span>Loading</span>
+  <div class="dot red"></div>
+  <div class="dot green"></div>
+  <div class="dot blue"></div>
+</div>
 
 <?php include '../includes/header.php'; ?>
 <div class="dashboard-container">
@@ -152,6 +197,11 @@ if (isset($_SESSION['message'])) {
         <div class="form-group">
             <label><i class='bx bxs-user-circle'></i> Name *</label>
             <input type="text" name="name" placeholder="Full Name" required>
+        </div>
+
+        <div class="form-group">
+            <label><i class='bx bxs-certification'></i> TSC Number</label>
+            <input type="text" name="tsc_no" placeholder="Enter TSC No (optional)">
         </div>
 
         <div class="form-group">
@@ -212,9 +262,16 @@ if (isset($_SESSION['message'])) {
 </main>
 </div>
 <?php include '../includes/footer.php'; ?>
-</body>
-</html>
-
+<script>
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const loader = document.getElementById('page-loader');
+    if (loader) {
+      loader.style.display = 'none';
+    }
+  }, 2000);
+});
+</script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
     /* ===== Real-time clock ===== */
@@ -291,3 +348,5 @@ if (isset($_SESSION['message'])) {
     resetLogoutTimer();
 });
 </script>
+</body>
+</html>

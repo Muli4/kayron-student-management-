@@ -19,15 +19,14 @@
         <!-- Teachers Dropdown  -->
         <li class="dropdown">
             <a href="javascript:void(0)" class="dropdown-btn">
-                <span><i class='bx bx-chalkboard'></i> Teachers <span class="new">New</span></span>
+                <span><i class='bx bx-chalkboard'></i> Teachers <span class="updated">updated</span></span>
                 <i class='bx bx-chevron-down arrow'></i>
             </a>
             <ul class="dropdown-content">
                 <li><a href="../teachers/add-teacher.php"><i class='bx bx-user-plus'></i> Add Teacher</a></li>
-                <li><a href="#"><i class='bx bx-group'></i> Manage Teachers</a></li>
-                <li><a href="#"><i class='bx bx-chalkboard-teacher'></i> View Teachers</a></li>
-                <li><a href="#"><i class='bx bx-dollar-circle'></i> Manage Salaries</a></li>
-                <li><a href="#"><i class='bx bx-task'></i> Teacher Attendance</a></li>
+                <li><a href="../teachers/manage-teacher.php"><i class='bx bx-group'></i> Manage Teachers</a></li>
+                <!-- <li><a href="../teachers/pay-teachers.php"><i class='bx bx-dollar-circle'></i> Manage Salaries</a></li>
+                <li><a href="#"><i class='bx bx-task'></i> Teacher Attendance</a></li>-->
             </ul>
         </li> 
 
@@ -51,7 +50,7 @@
                 <i class='bx bx-chevron-down arrow'></i>
             </a>
             <ul class="dropdown-content">
-                <li><a href="../php/exam-tracker.php"><i class='bx bx-book-open'></i> Exam Tracker <span class="new">new</span></a></li>
+                <li><a href="../php/exam-tracker.php"><i class='bx bx-book-open'></i> Exam Tracker</a></li>
                 <li><a href="../php/graduation-tracker.php"><i class='bx bx-user-check'></i> Graduation Tracker </a></li>
                 <li><a href="../php/prize-giving-tracker.php"><i class='bx bx-gift'></i> Prize Giving Tracker</a></li>
             </ul>
@@ -65,7 +64,7 @@
             </a>
             <ul class="dropdown-content">
                 <li><a href="../php/week.php"><i class='bx bx-calendar-event'></i> Register Week</a></li>
-                <li><a href="../php/attendance_register.php"><i class='bx bx-task'></i> Mark Attendance <span class="updated">updated</span></a></li> 
+                <li><a href="../php/attendance_register.php"><i class='bx bx-task'></i> Mark Attendance</a></li> 
             </ul>
         </li>
 

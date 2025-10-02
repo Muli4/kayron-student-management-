@@ -1,3 +1,6 @@
+<?php
+session_start();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -136,18 +139,58 @@
             font-size: 13px;
         }
     }
+/* Page Loader with Colored Dots */
+#page-loader {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+#page-loader span{
+    font-weight: bold;
+}
+.loader .dot {
+  width: 18px;
+  height: 18px;
+  margin: 0 6px;
+  border-radius: 50%;
+  animation: bounce 1.2s infinite ease-in-out;
+}
+
+.loader .dot.red { background-color: #e74c3c; animation-delay: 0s; }
+.loader .dot.green { background-color: #1cc88a; animation-delay: 0.2s; }
+.loader .dot.blue { background-color: #4e73df; animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 </style>
 
 </head>
 <body class="login-body">
-
+<div id="page-loader" class="loader">
+  <span>Loading</span>
+  <div class="dot red"></div>
+  <div class="dot green"></div>
+  <div class="dot blue"></div>
+</div>
     <div class="login-container">
         <!-- Logo -->
         <img src="./images/school-logo.jpg" alt="Kayron Junior School Logo">
         <h2>KAYRON JUNIOR SCHOOL</h2>
 
         <?php
-        session_start();
         if (isset($_SESSION['message'])) {
             echo "<div class='message'>" . $_SESSION['message'] . "</div>";
             unset($_SESSION['message']);
@@ -182,5 +225,15 @@
             });
         });
     </script>
+<script>
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const loader = document.getElementById('page-loader');
+    if (loader) {
+      loader.style.display = 'none';
+    }
+  }, 2000);
+});
+</script>
 </body>
 </html>

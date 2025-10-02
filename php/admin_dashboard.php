@@ -233,26 +233,13 @@ canvas.chart {
     padding: 16px 20px;
     background: #e3f2fd; /* Light blue background */
     color: #0d47a1;       /* Deep blue text */
-    font-size: 18px;
+    font-size: 10px;
     font-weight: 500;
     border-left: 6px solid #2196f3; /* Info blue */
     border-radius: 8px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     animation: slide-right 30s linear infinite;
     white-space: nowrap;
-}
-
-/* Left-to-right slide */
-@keyframes slide-right {
-    0% {
-        transform: translateX(-100%);
-    }
-    50% {
-        transform: translateX(100vw);
-    }
-    100% {
-        transform: translateX(-100%);
-    }
 }
 </style>
 
@@ -265,7 +252,7 @@ canvas.chart {
 <main class="content">
     
 <div class="message-container">
-    <h2>📢 You can now pay exam through the tracker</h2>
+    <h2>📢 You can now add and manage teachers</h2>
 </div>
 <div class="dashboard-data">
     <div class="data-container"><h3>Total Students</h3><p><?= $totalStudents ?></p></div>
